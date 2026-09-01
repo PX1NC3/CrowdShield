@@ -1,0 +1,56 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Node / Vite
+node_modules/
+dist/
+.vite/
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python tooling
+.pytest_cache/
+.mypy_cache/
+
+# Large media
+*.mp4
+*.webm
+*.avi
+*.mov
+
+# Model weights
+*.pt
+*.onnx
+
+# Generated/cache data
+__pycache__/
+*.pyc
+# Local executables
+*.exe
+
+# Generated runtime logs/data
+data/logs/*.csv
+data/logs/*.json
+CrowdShield_Shaurya/data/logs/*.csv
+CrowdShield_Shaurya/data/logs/*.json
+
+# Generated detection outputs
+runs/
+CrowdShield_Shaurya/runs/

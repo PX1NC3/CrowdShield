@@ -1,0 +1,86 @@
+.navbar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 100;
+  background: var(--nav-bg);
+  border-top: 1px solid var(--nav-border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  height: calc(64px + env(safe-area-inset-bottom, 0));
+}
+
+.navbar__inner {
+  display: flex;
+  align-items: stretch;
+  height: 64px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.navbar__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+  padding: var(--space-1) 0;
+  position: relative;
+}
+
+.navbar__item:hover { color: var(--text-secondary); }
+
+.navbar__item--active {
+  color: var(--accent);
+}
+
+.navbar__item--active .navbar__label {
+  font-weight: 700;
+}
+
+.navbar__icon {
+  font-size: 1.25rem;
+  line-height: 1;
+  position: relative;
+}
+
+.navbar__label {
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+/* Active indicator */
+.navbar__item--active::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 28px; height: 2px;
+  background: var(--accent);
+  border-radius: 0 0 2px 2px;
+}
+
+/* Alert badge on Alerts icon */
+.navbar__badge {
+  position: absolute;
+  top: -4px; right: -8px;
+  background: var(--risk-critical);
+  color: white;
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 0 4px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  animation: blink 3s ease-in-out infinite;
+}

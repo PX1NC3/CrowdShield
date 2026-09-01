@@ -1,0 +1,46 @@
+.risk-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: all var(--transition-fast);
+}
+
+.risk-badge--lg {
+  font-size: 0.8rem;
+  padding: 5px 14px;
+}
+
+.risk-badge--sm {
+  font-size: 0.65rem;
+  padding: 2px 8px;
+}
+
+/* Colours */
+.risk-badge--low      { background: var(--risk-low-bg);      color: var(--risk-low); }
+.risk-badge--medium   { background: var(--risk-medium-bg);   color: var(--risk-medium); }
+.risk-badge--high     { background: var(--risk-high-bg);     color: var(--risk-high); }
+.risk-badge--critical { background: var(--risk-critical-bg); color: var(--risk-critical); }
+
+.risk-badge__dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: pulseRing 2s ease-in-out infinite;
+}
+
+.risk-badge__score {
+  opacity: 0.7;
+  font-weight: 600;
+}
+
+/* Pulse for active threats */
+.risk-badge--pulse.risk-badge--high,
+.risk-badge--pulse.risk-badge--critical {
+  animation: blink 2.5s ease-in-out infinite;
+}
