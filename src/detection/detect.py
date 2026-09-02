@@ -758,31 +758,52 @@ while True:
 
     people_count = 0
 
-    if (
-        result.boxes is not None
-        and result.boxes.id is not None
-    ):
+    people_count = 0
+
+    if result.boxes is not None and len(result.boxes) > 0:
 
         boxes = result.boxes
+
+        classes = (
+            boxes.cls
+            .int()
+            .cpu()
+            .tolist()
+        ) if boxes.cls is not None else [0] * len(boxes)
+
+        confs = (
+            boxes.conf
+            .cpu()
+            .tolist()
+        ) if boxes.conf is not None else [1.0] * len(boxes)
+
+        xyxys = (
+            boxes.xyxy
+            .cpu()
+            .tolist()
+        ) if boxes.xyxy is not None else []
 
         track_ids = (
             boxes.id
             .int()
             .cpu()
             .tolist()
-        )
+        ) if boxes.id is not None else None
 
-        for box, track_id in zip(
-            boxes,
-            track_ids
-        ):
-            conf = float(box.conf[0].cpu()) if box.conf is not None else 1.0
-            if conf < 0.30:
+        is_aerial = ("aerial" in video_path.lower()) or ("square" in video_path.lower()) or ("pedestrian" in video_path.lower())
+        min_conf = 0.15 if is_aerial else 0.30
+
+        for i in range(len(boxes)):
+            if classes[i] != 0:
+                continue
+
+            conf = confs[i]
+            if conf < min_conf:
                 continue
 
             x1, y1, x2, y2 = map(
                 int,
-                box.xyxy[0]
+                xyxys[i]
             )
 
             people_count += 1
@@ -823,80 +844,6 @@ while True:
             zone_counts[zone - 1] += 1
 
             # =============================================
-            # ZONE-TO-ZONE FLOW
-            # =============================================
-
-            if track_id in previous_zones:
-
-                old_zone = previous_zones[
-                    track_id
-                ]
-
-                if old_zone != zone:
-
-                    flow = (
-                        old_zone,
-                        zone
-                    )
-
-                    if flow not in zone_flows:
-                        zone_flows[flow] = 0
-
-                    zone_flows[flow] += 1
-
-                    current_incoming[
-                        zone - 1
-                    ] += 1
-
-                    current_outgoing[
-                        old_zone - 1
-                    ] += 1
-
-                    print(
-                        f"CONFIRMED: ID {track_id}: "
-                        f"Z{old_zone} -> Z{zone}"
-                    )
-
-            previous_zones[
-                track_id
-            ] = zone
-
-            # =============================================
-            # MOVEMENT HISTORY
-            # =============================================
-
-            if track_id not in track_history:
-
-                track_history[
-                    track_id
-                ] = []
-
-            corrected_x = int(
-                center_x - camera_offset_x
-            )
-
-            corrected_y = int(
-                center_y - camera_offset_y
-            )
-
-            track_history[
-                track_id
-            ].append(
-                (
-                    corrected_x,
-                    corrected_y
-                )
-            )
-
-            if len(
-                track_history[track_id]
-            ) > 30:
-
-                track_history[
-                    track_id
-                ].pop(0)
-
-            # =============================================
             # DRAW PERSON
             # =============================================
 
@@ -916,53 +863,144 @@ while True:
                 -1
             )
 
-            cv2.putText(
-                frame,
-                f"ID {track_id} | Z{zone}",
-                (x1, y1 - 10),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                (0, 255, 0),
-                2
-            )
-
             # =============================================
-            # MOVEMENT TRAIL
+            # TRACK-DEPENDENT LOGIC (Only with ByteTrack ID)
             # =============================================
 
-            points = track_history[
-                track_id
-            ]
+            if track_ids is not None and i < len(track_ids):
+                track_id = track_ids[i]
 
-            display_points = []
+                # =============================================
+                # ZONE-TO-ZONE FLOW
+                # =============================================
 
-            for px, py in points:
+                if track_id in previous_zones:
 
-                display_x = int(
-                    px + camera_offset_x
+                    old_zone = previous_zones[
+                        track_id
+                    ]
+
+                    if old_zone != zone:
+
+                        flow = (
+                            old_zone,
+                            zone
+                        )
+
+                        if flow not in zone_flows:
+                            zone_flows[flow] = 0
+
+                        zone_flows[flow] += 1
+
+                        current_incoming[
+                            zone - 1
+                        ] += 1
+
+                        current_outgoing[
+                            old_zone - 1
+                        ] += 1
+
+                        print(
+                            f"CONFIRMED: ID {track_id}: "
+                            f"Z{old_zone} -> Z{zone}"
+                        )
+
+                previous_zones[
+                    track_id
+                ] = zone
+
+                # =============================================
+                # MOVEMENT HISTORY
+                # =============================================
+
+                if track_id not in track_history:
+
+                    track_history[
+                        track_id
+                    ] = []
+
+                corrected_x = int(
+                    center_x - camera_offset_x
                 )
 
-                display_y = int(
-                    py + camera_offset_y
+                corrected_y = int(
+                    center_y - camera_offset_y
                 )
 
-                display_points.append(
+                track_history[
+                    track_id
+                ].append(
                     (
-                        display_x,
-                        display_y
+                        corrected_x,
+                        corrected_y
                     )
                 )
 
-            for i in range(
-                1,
-                len(display_points)
-            ):
+                if len(
+                    track_history[track_id]
+                ) > 30:
 
-                cv2.line(
+                    track_history[
+                        track_id
+                    ].pop(0)
+
+                cv2.putText(
                     frame,
-                    display_points[i - 1],
-                    display_points[i],
-                    (255, 0, 0),
+                    f"ID {track_id} | Z{zone}",
+                    (x1, y1 - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 255, 0),
+                    2
+                )
+
+                # =============================================
+                # MOVEMENT TRAIL
+                # =============================================
+
+                points = track_history[
+                    track_id
+                ]
+
+                display_points = []
+
+                for px, py in points:
+
+                    display_x = int(
+                        px + camera_offset_x
+                    )
+
+                    display_y = int(
+                        py + camera_offset_y
+                    )
+
+                    display_points.append(
+                        (
+                            display_x,
+                            display_y
+                        )
+                    )
+
+                for idx in range(
+                    1,
+                    len(display_points)
+                ):
+
+                    cv2.line(
+                        frame,
+                        display_points[idx - 1],
+                        display_points[idx],
+                        (255, 0, 0),
+                        2
+                    )
+            else:
+                cv2.putText(
+                    frame,
+                    f"Z{zone}",
+                    (x1, y1 - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 255, 0),
                     2
                 )
 
