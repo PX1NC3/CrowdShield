@@ -165,7 +165,7 @@ def analyze_video(video_path: str, model: YOLO, max_frames: int = 400):
     }
 
 def main():
-    model_path = os.path.join(PROJECT_ROOT, "models", "yolo11n.pt")
+    model_path = os.path.join(PROJECT_ROOT, "models", "yolov8n.pt")
     if not os.path.exists(model_path):
         print(f"ERROR: Model file not found at {model_path}")
         return

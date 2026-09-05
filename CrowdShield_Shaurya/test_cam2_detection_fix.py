@@ -43,7 +43,7 @@ def test_cam2_aerial_detection_fix():
     if not cam2_config:
         return
 
-    model_path = os.path.join(_TEST_DIR, "models", "yolo11n.pt")
+    model_path = os.path.join(_TEST_DIR, "models", "yolov8n.pt")
     model = detect.YOLO(model_path)
     cap = cv2.VideoCapture(cam2_config["source"])
 
@@ -59,7 +59,7 @@ def test_cam2_aerial_detection_fix():
 
         # Simulate detection logic as in detect.py
         with torch.no_grad():
-            results = model.track(frame, persist=True, imgsz=640, verbose=False)
+            results = model.track(frame, persist=True, imgsz=960, conf=0.25, verbose=False)
 
         boxes = results[0].boxes
         zone_counts = [0] * 9
@@ -67,7 +67,7 @@ def test_cam2_aerial_detection_fix():
         active_ids = set()
 
         is_aerial = ("aerial" in cam2_config["name"].lower()) or ("square" in cam2_config["source"].lower()) or ("pedestrian" in cam2_config["source"].lower())
-        min_conf = 0.15 if is_aerial else 0.30
+        min_conf = 0.25
 
         if boxes is not None and len(boxes) > 0:
             classes = boxes.cls.cpu().numpy().astype(int)

@@ -433,11 +433,11 @@ threading.Thread(target=start_live_api, daemon=True).start()
 # =====================================================
 
 def run_camera_processor(cam_id: str, cam_name: str, video_source: str):
-    model_path = os.path.join(PROJECT_ROOT, "models", "yolo11n.pt")
+    model_path = os.path.join(PROJECT_ROOT, "models", "yolov8n.pt")
     if not os.path.exists(model_path):
-        model_path = os.path.abspath(os.path.join(_SCRIPT_DIR, "..", "models", "yolo11n.pt"))
+        model_path = os.path.abspath(os.path.join(_SCRIPT_DIR, "..", "models", "yolov8n.pt"))
     if not os.path.exists(model_path):
-        model_path = "yolo11n.pt"  # ultralytics auto-download fallback
+        model_path = "yolov8n.pt"  # ultralytics auto-download fallback
     model = YOLO(model_path)
 
     cap = cv2.VideoCapture(video_source)
@@ -462,7 +462,7 @@ def run_camera_processor(cam_id: str, cam_name: str, video_source: str):
     density_trend_delta = [0.0] * 9
     frame_counter = 0
 
-    YOLO_IMGSZ = 640
+    YOLO_IMGSZ = 960
     CAMERA_MOTION_INTERVAL = 3
 
     # Adaptive baselines per camera
@@ -647,7 +647,7 @@ def run_camera_processor(cam_id: str, cam_name: str, video_source: str):
             try:
                 sys.stdout = SuppressOpticalFlowFilter(old_stdout)
                 sys.stderr = SuppressOpticalFlowFilter(old_stderr)
-                results = model.track(frame, persist=True, imgsz=YOLO_IMGSZ, verbose=False)
+                results = model.track(frame, persist=True, tracker="bytetrack.yaml", classes=[0], imgsz=YOLO_IMGSZ, conf=0.25, verbose=False)
             finally:
                 sys.stdout = old_stdout
                 sys.stderr = old_stderr
@@ -659,7 +659,7 @@ def run_camera_processor(cam_id: str, cam_name: str, video_source: str):
         active_ids = set()
 
         is_aerial = ("aerial" in cam_name.lower()) or ("square" in video_source.lower()) or ("pedestrian" in video_source.lower())
-        min_conf = 0.15 if is_aerial else 0.30
+        min_conf = 0.25
 
         if boxes is not None and len(boxes) > 0:
             classes = boxes.cls.cpu().numpy().astype(int)

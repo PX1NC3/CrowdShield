@@ -79,7 +79,7 @@ def audit_video_fast(filepath, model, start_frame=130, num_frames=40):
     }
 
 def main():
-    model_path = os.path.join(PROJECT_ROOT, "models", "yolo11n.pt")
+    model_path = os.path.join(PROJECT_ROOT, "models", "yolov8n.pt")
     model = YOLO(model_path)
 
     v1 = os.path.join(PROJECT_ROOT, "data", "videos", "crowd_test.mp4")

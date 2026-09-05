@@ -11,11 +11,11 @@ from collections import deque
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.abspath(os.path.join(_SCRIPT_DIR, "..", ".."))
-_model_path = os.path.join(_PROJECT_ROOT, "models", "yolo11n.pt")
+_model_path = os.path.join(_PROJECT_ROOT, "models", "yolov8n.pt")
 if not os.path.exists(_model_path):
-    _model_path = os.path.abspath(os.path.join(_SCRIPT_DIR, "..", "models", "yolo11n.pt"))
+    _model_path = os.path.abspath(os.path.join(_SCRIPT_DIR, "..", "models", "yolov8n.pt"))
 if not os.path.exists(_model_path):
-    _model_path = "yolo11n.pt"
+    _model_path = "yolov8n.pt"
 
 model = YOLO(_model_path)
 
@@ -85,7 +85,7 @@ processing_fps = 0.0
 # =====================================================
 # YOLO11n is already the lightweight model. Limiting
 # inference resolution is the biggest safe FPS win.
-YOLO_IMGSZ = 640
+YOLO_IMGSZ = 960
 
 # Camera-motion estimation is expensive. It is only
 # needed periodically because zone/tracking analysis
@@ -751,6 +751,7 @@ while True:
         tracker="bytetrack.yaml",
         classes=[0],
         imgsz=YOLO_IMGSZ,
+        conf=0.25,
         verbose=False
     )
 
@@ -791,7 +792,7 @@ while True:
         ) if boxes.id is not None else None
 
         is_aerial = ("aerial" in video_path.lower()) or ("square" in video_path.lower()) or ("pedestrian" in video_path.lower())
-        min_conf = 0.15 if is_aerial else 0.30
+        min_conf = 0.25
 
         for i in range(len(boxes)):
             if classes[i] != 0:
