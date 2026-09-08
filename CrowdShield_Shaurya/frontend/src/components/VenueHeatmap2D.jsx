@@ -140,37 +140,37 @@ export default function VenueHeatmap2D({
     }
 
     // Outer Ground-Plane Boundary Frame
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    ctx.lineWidth = 1;
     ctx.strokeRect(padX, padY, venueW, venueH);
 
-    // Corner targeting brackets
-    const bracketLen = 14;
-    ctx.strokeStyle = '#38bdf8';
-    ctx.lineWidth = 2.5;
+    // Subtle corner framing accents
+    const bracketLen = 12;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.lineWidth = 1.5;
     // Top-Left
     ctx.beginPath();
-    ctx.moveTo(padX - 4, padY + bracketLen);
-    ctx.lineTo(padX - 4, padY - 4);
-    ctx.lineTo(padX + bracketLen, padY - 4);
+    ctx.moveTo(padX - 2, padY + bracketLen);
+    ctx.lineTo(padX - 2, padY - 2);
+    ctx.lineTo(padX + bracketLen, padY - 2);
     ctx.stroke();
     // Top-Right
     ctx.beginPath();
-    ctx.moveTo(padX + venueW + 4, padY + bracketLen);
-    ctx.lineTo(padX + venueW + 4, padY - 4);
-    ctx.lineTo(padX + venueW - bracketLen, padY - 4);
+    ctx.moveTo(padX + venueW + 2, padY + bracketLen);
+    ctx.lineTo(padX + venueW + 2, padY - 2);
+    ctx.lineTo(padX + venueW - bracketLen, padY - 2);
     ctx.stroke();
     // Bottom-Left
     ctx.beginPath();
-    ctx.moveTo(padX - 4, padY + venueH - bracketLen);
-    ctx.lineTo(padX - 4, padY + venueH + 4);
-    ctx.lineTo(padX + bracketLen, padY + venueH + 4);
+    ctx.moveTo(padX - 2, padY + venueH - bracketLen);
+    ctx.lineTo(padX - 2, padY + venueH + 2);
+    ctx.lineTo(padX + bracketLen, padY + venueH + 2);
     ctx.stroke();
     // Bottom-Right
     ctx.beginPath();
-    ctx.moveTo(padX + venueW + 4, padY + venueH - bracketLen);
-    ctx.lineTo(padX + venueW + 4, padY + venueH + 4);
-    ctx.lineTo(padX + venueW - bracketLen, padY + venueH + 4);
+    ctx.moveTo(padX + venueW + 2, padY + venueH - bracketLen);
+    ctx.lineTo(padX + venueW + 2, padY + venueH + 2);
+    ctx.lineTo(padX + venueW - bracketLen, padY + venueH + 2);
     ctx.stroke();
 
     // ── 3. CONTINUOUS HEAT SURFACE RENDERING ──────────────────
@@ -247,20 +247,17 @@ export default function VenueHeatmap2D({
         const dx = toScreenX(det.x);
         const dy = toScreenY(det.y);
 
-        // Outer pulse aura
-        ctx.fillStyle = 'rgba(56, 189, 248, 0.2)';
+        // Person centroid indicator
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
         ctx.beginPath();
-        ctx.arc(dx, dy, 5.5 + Math.sin(pulsePhaseRef.current * 2 + det.x * 10) * 1.2, 0, Math.PI * 2);
+        ctx.arc(dx, dy, 4.5, 0, Math.PI * 2);
         ctx.fill();
 
         // Core person dot
-        ctx.fillStyle = '#38bdf8';
-        ctx.shadowColor = '#38bdf8';
-        ctx.shadowBlur = 6;
+        ctx.fillStyle = '#ffffff';
         ctx.beginPath();
-        ctx.arc(dx, dy, 2.5, 0, Math.PI * 2);
+        ctx.arc(dx, dy, 2, 0, Math.PI * 2);
         ctx.fill();
-        ctx.shadowBlur = 0;
       });
       ctx.restore();
     }
@@ -380,7 +377,7 @@ export default function VenueHeatmap2D({
     ctx.save();
 
     // Top-Left: Model & Source Badges
-    ctx.fillStyle = 'rgba(56, 189, 248, 0.95)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
     ctx.font = '700 10px "JetBrains Mono", monospace';
     ctx.textAlign = 'left';
     ctx.fillText('CAMERA-DERIVED VENUE MODEL', padX + 6, padY - 24);
@@ -396,7 +393,7 @@ export default function VenueHeatmap2D({
     // Top-Right: Camera Optical Field Reference
     const compassX = padX + venueW - 10;
     ctx.textAlign = 'right';
-    ctx.fillStyle = '#38bdf8';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
     ctx.font = 'bold 9px "JetBrains Mono", monospace';
     ctx.fillText('▲ FORWARD OPTICAL AXIS', compassX, padY - 14);
 

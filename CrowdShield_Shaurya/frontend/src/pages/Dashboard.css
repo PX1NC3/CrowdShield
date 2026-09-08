@@ -18,16 +18,12 @@
 
 .dashboard__logo-icon {
   font-size: 2rem;
-  filter: drop-shadow(0 0 8px rgba(99,102,241,0.4));
 }
 
 .dashboard__title {
-  font-size: 1.4rem;
-  font-weight: 900;
-  background: var(--shield-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text-primary);
   line-height: 1;
 }
 
@@ -114,7 +110,6 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 16px var(--ring-color, transparent);
   transition: all var(--transition-slow);
   flex-shrink: 0;
 }

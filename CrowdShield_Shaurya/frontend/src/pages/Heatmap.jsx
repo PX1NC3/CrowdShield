@@ -397,11 +397,11 @@ export default function Heatmap() {
                 </div>
                 <div className="cell-detail__metric">
                   <span>Spatial Region</span>
-                  <strong style={{ color: '#38bdf8' }}>{selectedPoint.spatialCoord}</strong>
+                  <strong style={{ color: 'var(--text-primary)' }}>{selectedPoint.spatialCoord}</strong>
                 </div>
                 <div className="cell-detail__metric">
                   <span>3D Density Relief</span>
-                  <strong style={{ color: '#38bdf8' }}>
+                  <strong style={{ color: 'var(--text-secondary)' }}>
                     {selectedPoint.density >= 10 ? 'Prominent Peak' : (selectedPoint.density >= 4 ? 'Elevated Hill' : 'Gentle Relief')}
                   </strong>
                 </div>

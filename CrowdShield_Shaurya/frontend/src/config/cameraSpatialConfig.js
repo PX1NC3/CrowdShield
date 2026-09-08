@@ -15,7 +15,7 @@ export const CAMERA_SPATIAL_CONFIGS = {
     planeWidth: 14,
     planeDepth: 10,
     gridDivisions: 10,
-    accentColor: '#3b82f6',
+    accentColor: '#7c3aed',
     defaultCameraPos: [0, 8.5, 11],
     defaultTarget: [0, 0, 0.5],
     // Part 2 placeholder for calibration matrix / homography
@@ -35,7 +35,7 @@ export const CAMERA_SPATIAL_CONFIGS = {
     planeWidth: 14,
     planeDepth: 10,
     gridDivisions: 10,
-    accentColor: '#06b6d4',
+    accentColor: '#7c3aed',
     defaultCameraPos: [0, 8.5, 11],
     defaultTarget: [0, 0, 0.5],
     // Part 2 placeholder for calibration matrix / homography
@@ -58,7 +58,7 @@ export function getCameraSpatialConfig(camId) {
     planeWidth: 14,
     planeDepth: 10,
     gridDivisions: 10,
-    accentColor: '#6366f1',
+    accentColor: '#7c3aed',
     defaultCameraPos: [0, 8.5, 11],
     defaultTarget: [0, 0, 0.5],
     calibration: { isCalibrated: false, homographyMatrix: null },

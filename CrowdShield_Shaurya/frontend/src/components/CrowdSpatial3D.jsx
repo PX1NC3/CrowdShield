@@ -155,7 +155,7 @@ export default function CrowdSpatial3D({
     dirLight.position.set(6, 14, 8);
     scene.add(dirLight);
 
-    const softFill = new THREE.DirectionalLight(0x38bdf8, 0.35);
+    const softFill = new THREE.DirectionalLight(0x64748b, 0.35);
     softFill.position.set(-6, 8, -6);
     scene.add(softFill);
 
@@ -172,13 +172,13 @@ export default function CrowdSpatial3D({
     scene.add(groundMesh);
 
     // Grid helper overlay on ground
-    const gridHelper = new THREE.GridHelper(planeW, 12, 0x4f46e5, 0x1e293b);
+    const gridHelper = new THREE.GridHelper(planeW, 12, 0x334155, 0x1e293b);
     gridHelper.position.y = 0.005;
     scene.add(gridHelper);
 
     // Boundary frame for camera FOV area
     const edgesGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(planeW, 0.04, planeD));
-    const edgesMat = new THREE.LineBasicMaterial({ color: 0x3b82f6, linewidth: 2 });
+    const edgesMat = new THREE.LineBasicMaterial({ color: 0x475569, linewidth: 1.5 });
     const edgesMesh = new THREE.LineSegments(edgesGeo, edgesMat);
     edgesMesh.position.y = 0.01;
     scene.add(edgesMesh);
@@ -189,7 +189,7 @@ export default function CrowdSpatial3D({
 
     const coneGeo = new THREE.ConeGeometry(0.35, 0.7, 4);
     coneGeo.rotateX(Math.PI / 2);
-    const coneMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+    const coneMat = new THREE.MeshBasicMaterial({ color: 0x7c3aed });
     const coneMesh = new THREE.Mesh(coneGeo, coneMat);
     observerGroup.add(coneMesh);
 
@@ -198,7 +198,7 @@ export default function CrowdSpatial3D({
       new THREE.Vector3(0, 0, 0),
       new THREE.Vector3(planeW / 2, 0, -0.6),
     ]);
-    const camLineMat = new THREE.LineDashedMaterial({ color: 0x38bdf8, dashSize: 0.3, gapSize: 0.2 });
+    const camLineMat = new THREE.LineDashedMaterial({ color: 0x7c3aed, dashSize: 0.3, gapSize: 0.2 });
     const camLines = new THREE.Line(camLabelLineGeo, camLineMat);
     camLines.computeLineDistances();
     observerGroup.add(camLines);

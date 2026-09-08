@@ -106,7 +106,7 @@ export default function PublicHelp() {
               <strong style={{ display: 'block', fontSize: '0.88rem' }}>Lost &amp; Found / Meeting Hub</strong>
               <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>East Plaza Pavilion</span>
             </div>
-            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#38bdf8' }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--text-primary)' }}>
               Station E-1
             </span>
           </div>
@@ -133,8 +133,8 @@ export default function PublicHelp() {
         className="card"
         style={{
           padding: '20px',
-          background: 'rgba(56, 189, 248, 0.06)',
-          border: '1px solid rgba(56, 189, 248, 0.2)',
+          background: 'rgba(124, 58, 237, 0.04)',
+          border: '1px solid rgba(124, 58, 237, 0.2)',
           textAlign: 'center',
         }}
       >

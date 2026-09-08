@@ -7,7 +7,7 @@
   width: 100%;
   height: 480px;
   min-height: 440px;
-  background: radial-gradient(circle at 50% 30%, #151922 0%, #0a0c10 100%);
+  background: #0a0e17;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-subtle);
   overflow: hidden;
@@ -70,12 +70,10 @@
   height: 8px;
   border-radius: 50%;
   background: var(--risk-low);
-  box-shadow: 0 0 8px var(--risk-low);
 }
 
 .crowd-spatial-3d__cam-dot--alert {
   background: var(--risk-critical);
-  box-shadow: 0 0 10px var(--risk-critical);
   animation: pulse 1.5s infinite;
 }
 
@@ -298,7 +296,6 @@
 .spatial-view-toggle-btn--active {
   background: var(--accent);
   color: white;
-  box-shadow: 0 2px 8px var(--accent-glow);
 }
 
 @keyframes slideIn {

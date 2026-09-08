@@ -124,7 +124,7 @@ export default function VenueHeatmap3D({
     dirLight1.shadow.mapSize.height = 1024;
     scene.add(dirLight1);
 
-    const dirLight2 = new THREE.DirectionalLight(0x38bdf8, 0.5);
+    const dirLight2 = new THREE.DirectionalLight(0x64748b, 0.4);
     dirLight2.position.set(-22, 16, -18);
     scene.add(dirLight2);
 
@@ -140,7 +140,7 @@ export default function VenueHeatmap3D({
     scene.add(baseMesh);
 
     // Subtle Tactical Grid Floor on base
-    const gridHelper = new THREE.GridHelper(Math.max(PLANE_WIDTH, PLANE_DEPTH), 28, 0x38bdf8, 0x1e293b);
+    const gridHelper = new THREE.GridHelper(Math.max(PLANE_WIDTH, PLANE_DEPTH), 28, 0x334155, 0x1e293b);
     gridHelper.position.y = 0.01;
     scene.add(gridHelper);
 
@@ -188,12 +188,12 @@ export default function VenueHeatmap3D({
     scene.add(terrainMesh);
     terrainMeshRef.current = terrainMesh;
 
-    // Subtle wireframe overlay for cyber-topographic surface aesthetic
+    // Subtle wireframe overlay for topographic surface aesthetic
     const wireframeMat = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
+      color: 0x475569,
       wireframe: true,
       transparent: true,
-      opacity: 0.035, // Very subtle, does not clutter the relief
+      opacity: 0.04, // Very subtle, does not clutter the relief
     });
     const wireframeMesh = new THREE.Mesh(terrainGeo, wireframeMat);
     wireframeMesh.position.y = 0.015;

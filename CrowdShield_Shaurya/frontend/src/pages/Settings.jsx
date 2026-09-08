@@ -57,7 +57,7 @@ export default function Settings() {
       </h1>
 
       {/* ── Active User Role Section ────────────────────────────── */}
-      <section className="settings-section card" style={{ border: isManager ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid var(--border-default)' }}>
+      <section className="settings-section card" style={{ border: isManager ? '1px solid rgba(124, 58, 237, 0.35)' : '1px solid var(--border-default)' }}>
         <div className="section-heading"><span>🛡</span> Access Role & Authorization</div>
         <div className="settings-row">
           <div>
@@ -82,7 +82,7 @@ export default function Settings() {
 
       {/* ── Demo / Simulation Mode Section (Manager Only) ──────── */}
       {isManager && (
-        <section className="settings-section card" style={{ border: '1px solid rgba(99, 102, 241, 0.3)' }}>
+        <section className="settings-section card" style={{ border: '1px solid rgba(124, 58, 237, 0.3)' }}>
           <div className="section-heading"><span style={{ color: 'var(--accent)' }}>🔬</span> Location Heatmap Demo Simulation</div>
           <div className="settings-row">
             <div>

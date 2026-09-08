@@ -22,14 +22,14 @@ export function getPublicStatus(prevention, location) {
   if (scenario === 'dispersal') {
     return {
       type: 'dispersal',
-      icon: '🔵',
+      icon: '🟣',
       badge: 'Flow Update',
       title: 'Crowd Is Dispersing',
       subtitle: 'Event flow is moving toward designated exits',
       message: 'Please continue calmly toward the indicated exit.',
-      color: '#38bdf8',
-      bg: 'rgba(56, 189, 248, 0.12)',
-      border: 'rgba(56, 189, 248, 0.3)',
+      color: '#a78bfa',
+      bg: 'rgba(124, 58, 237, 0.12)',
+      border: 'rgba(124, 58, 237, 0.3)',
     };
   }
 
