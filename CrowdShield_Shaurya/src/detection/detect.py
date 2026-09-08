@@ -81,6 +81,7 @@ class CameraStateStore:
         self.jpegs = {cam: None for cam in CAMERAS}
         self.zone_states = {cam: {} for cam in CAMERAS}
         self.prevention_states = {cam: {} for cam in CAMERAS}
+        self.spatial_states = {cam: {} for cam in CAMERAS}
         self.density_history = {cam: deque(maxlen=60) for cam in CAMERAS}
         self.risk_history = {cam: deque(maxlen=60) for cam in CAMERAS}
 
@@ -208,8 +209,17 @@ class LivePreventionHandler(BaseHTTPRequestHandler):
         # --------------------------------------------------
         # Live prevention JSON (Multi-camera aware)
         # --------------------------------------------------
+        # --------------------------------------------------
+        # Live prevention JSON (Multi-camera aware)
+        # --------------------------------------------------
         if path in ("/", "/live_prevention.json", "/api/prevention"):
-            if is_demo and dg:
+            with state_store.lock:
+                req_pstate = state_store.prevention_states.get(req_cam) or {}
+                req_zstate = state_store.zone_states.get(req_cam) or {}
+                has_real_pipeline = (req_pstate.get("total_people") is not None)
+
+            if is_demo and dg and not has_real_pipeline:
+                # Standalone demo generator fallback when camera workers are not running (e.g. unit tests)
                 demo_data = dg.generate_camera_data(req_cam, user_role=role)
                 payload = demo_data["prevention"]
             else:
@@ -238,6 +248,90 @@ class LivePreventionHandler(BaseHTTPRequestHandler):
                         all_threats.extend(cthreats)
 
                     req_pstate = state_store.prevention_states.get(req_cam) or {}
+                    raw_zones = (state_store.zone_states.get(req_cam) or {}).get("zones", [])
+                    zone_counts = [int(z.get("density", 0)) for z in raw_zones] if raw_zones else [0] * 9
+                    real_total = req_pstate.get("total_people", sum(zone_counts))
+
+                    if is_demo and dg:
+                        # Overlay demo scenario risk & intelligence layer on top of real camera detections
+                        sc = dg.scenario.lower()
+                        if sc == "normal":
+                            highest_lvl = "LOW"
+                            highest_zone = None
+                            active_threats = []
+                        elif sc == "buildup":
+                            highest_lvl = "HIGH"
+                            max_c = max(zone_counts) if zone_counts else 0
+                            focal_i = zone_counts.index(max_c) if max_c > 0 else 4
+                            highest_zone = f"Z{focal_i + 1}"
+                            safe_i = zone_counts.index(min(zone_counts)) if zone_counts else 0
+                            safe_alt = f"Z{safe_i + 1}"
+                            active_threats = [{
+                                "zone": highest_zone,
+                                "density": int(zone_counts[focal_i]),
+                                "risk_score": 68.0,
+                                "risk_level": "HIGH",
+                                "risk_cause": "Sustained crowd build-up + Inflow surge",
+                                "possible_origin": f"Z{((focal_i + 3) % 9) + 1}",
+                                "safe_alternative": safe_alt,
+                                "recommended_action": f"REDIRECT CROWD | Restrict inflow to {highest_zone} | Move toward {safe_alt}"
+                            }]
+                        elif sc == "critical":
+                            highest_lvl = "CRITICAL"
+                            sorted_i = sorted(range(9), key=lambda i: zone_counts[i], reverse=True)
+                            focal_i = sorted_i[0] if len(sorted_i) > 0 else 4
+                            sec_i = sorted_i[1] if len(sorted_i) > 1 else 3
+                            highest_zone = f"Z{focal_i + 1}"
+                            safe_i = sorted_i[-1] if len(sorted_i) > 0 else 0
+                            safe_alt = f"Z{safe_i + 1}"
+                            active_threats = [
+                                {
+                                    "zone": f"Z{focal_i + 1}",
+                                    "density": int(zone_counts[focal_i]),
+                                    "risk_score": 92.0,
+                                    "risk_level": "CRITICAL",
+                                    "risk_cause": "Critical density compression + Bottleneck surge",
+                                    "possible_origin": f"Z{((focal_i + 3) % 9) + 1}",
+                                    "safe_alternative": safe_alt,
+                                    "recommended_action": f"IMMEDIATE DIVERSION | Restrict entry to Z{focal_i + 1} | Alert operator | Redirect to {safe_alt}"
+                                },
+                                {
+                                    "zone": f"Z{sec_i + 1}",
+                                    "density": int(zone_counts[sec_i]),
+                                    "risk_score": 88.0,
+                                    "risk_level": "CRITICAL",
+                                    "risk_cause": "High volume bottleneck + Cross-flow congestion",
+                                    "possible_origin": f"Z{((sec_i + 3) % 9) + 1}",
+                                    "safe_alternative": safe_alt,
+                                    "recommended_action": f"IMMEDIATE DIVERSION | Restrict entry to Z{sec_i + 1} | Alert operator | Redirect to {safe_alt}"
+                                }
+                            ]
+                        elif sc == "dispersal":
+                            highest_lvl = "MEDIUM"
+                            max_c = max(zone_counts) if zone_counts else 0
+                            focal_i = zone_counts.index(max_c) if max_c > 0 else 4
+                            highest_zone = f"Z{focal_i + 1}"
+                            active_threats = [{
+                                "zone": highest_zone,
+                                "density": int(zone_counts[focal_i]),
+                                "risk_score": 45.0,
+                                "risk_level": "MEDIUM",
+                                "risk_cause": "Active crowd dispersal in progress",
+                                "possible_origin": "Z1",
+                                "safe_alternative": "Z7",
+                                "recommended_action": f"MONITOR DISPERSAL | Regulate egress flow in {highest_zone}"
+                            }]
+                        else:
+                            highest_lvl = req_pstate.get("highest_risk_level", "LOW")
+                            highest_zone = req_pstate.get("highest_risk_zone")
+
+                        cameras_summary[req_cam]["risk_level"] = highest_lvl
+                        cameras_summary[req_cam]["threat_count"] = len(active_threats)
+                        cameras_summary[req_cam]["has_serious_threat"] = highest_lvl in ("HIGH", "CRITICAL")
+                        cameras_summary[req_cam]["total_people"] = real_total
+                    else:
+                        highest_lvl = req_pstate.get("highest_risk_level", "LOW")
+                        highest_zone = req_pstate.get("highest_risk_zone")
 
                     if role == "user":
                         # Strictly sanitized Public User guidance payload - NO risk_score, NO HIGH/CRITICAL, NO origin, NO stampede/alarm info
@@ -261,7 +355,8 @@ class LivePreventionHandler(BaseHTTPRequestHandler):
                         payload = {
                             "status": "active",
                             "role": "user",
-                            "demo_mode": False,
+                            "demo_mode": is_demo,
+                            "demo_scenario": dg.scenario if is_demo and dg else "normal",
                             "timestamp": datetime.now().isoformat(timespec="seconds"),
                             "active_camera": req_cam,
                             "overall_crowd_status": highest_crowd,
@@ -282,17 +377,18 @@ class LivePreventionHandler(BaseHTTPRequestHandler):
                         payload = {
                             "status": "active",
                             "role": "manager",
-                            "demo_mode": False,
+                            "demo_mode": is_demo,
+                            "demo_scenario": dg.scenario if is_demo and dg else "normal",
                             "timestamp": datetime.now().isoformat(timespec="seconds"),
                             "active_camera": req_cam,
                             "threat_detected": len(active_threats) > 0,
-                            "highest_risk_zone": req_pstate.get("highest_risk_zone"),
-                            "highest_risk_level": req_pstate.get("highest_risk_level", "LOW"),
-                            "total_people": req_pstate.get("total_people", 0),
+                            "highest_risk_zone": highest_zone,
+                            "highest_risk_level": highest_lvl,
+                            "total_people": real_total,
                             "threat_count": len(active_threats),
                             "cameras": cameras_summary,
                             "threats": active_threats,
-                            "all_threats": all_threats
+                            "all_threats": active_threats if is_demo else all_threats
                         }
 
             self.send_response(200)
@@ -303,9 +399,21 @@ class LivePreventionHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(payload, indent=2).encode("utf-8"))
 
         # --------------------------------------------------
-        # MJPEG stream for requested camera (Non-blocking update loop)
+        # MJPEG stream for requested camera (Real processed video frames ONLY)
         # --------------------------------------------------
         elif path == "/stream":
+            if role == "user":
+                self.send_response(403)
+                self.send_header("Content-Type", "application/json")
+                self._cors_headers()
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "error": "Forbidden",
+                    "message": "Surveillance camera feeds are restricted to authorized venue managers."
+                }, indent=2).encode("utf-8"))
+                return
+
             self.send_response(200)
             self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=crowdframe")
             self._cors_headers()
@@ -315,11 +423,8 @@ class LivePreventionHandler(BaseHTTPRequestHandler):
             try:
                 last_jpeg = None
                 while True:
-                    if is_demo and dg:
-                        jpeg = dg.generate_demo_frame(req_cam)
-                    else:
-                        with state_store.lock:
-                            jpeg = state_store.jpegs.get(req_cam)
+                    with state_store.lock:
+                        jpeg = state_store.jpegs.get(req_cam)
 
                     # If no frame or duplicate frame, wait briefly and try again
                     if jpeg is None or jpeg == last_jpeg:
@@ -345,17 +450,87 @@ class LivePreventionHandler(BaseHTTPRequestHandler):
         # Per-zone state for requested camera
         # --------------------------------------------------
         elif path == "/zones":
-            if is_demo and dg:
+            with state_store.lock:
+                req_zstate = state_store.zone_states.get(req_cam) or {}
+                has_real_pipeline = len(req_zstate.get("zones", [])) == 9
+
+            if is_demo and dg and not has_real_pipeline:
                 demo_data = dg.generate_camera_data(req_cam, user_role=role)
                 payload = json.dumps(demo_data["zones"], indent=2).encode("utf-8")
             else:
                 with state_store.lock:
                     zstate = state_store.zone_states.get(req_cam) or {}
+                    raw_zones = zstate.get("zones", [])
+                    zone_counts = [int(z.get("density", 0)) for z in raw_zones] if raw_zones else [0] * 9
+                    real_total = sum(zone_counts)
+
+                    if is_demo and dg:
+                        sc = dg.scenario.lower()
+                        sim_zones = []
+                        max_c = max(zone_counts) if zone_counts else 0
+                        focal_i = zone_counts.index(max_c) if max_c > 0 else 4
+                        sorted_i = sorted(range(9), key=lambda i: zone_counts[i], reverse=True)
+                        sec_i = sorted_i[1] if len(sorted_i) > 1 else 3
+
+                        for i in range(9):
+                            base_z = raw_zones[i] if i < len(raw_zones) else {}
+                            c = zone_counts[i]
+                            if sc == "normal":
+                                sim_zones.append({
+                                    "zone": f"Z{i + 1}",
+                                    "density": c,
+                                    "trend": "STABLE",
+                                    "trend_delta": 0.0,
+                                    "density_change": 0,
+                                    "risk_score": min(float(base_z.get("risk_score", 10.0)), 20.0),
+                                    "risk_level": "LOW",
+                                    "risk_cause": "Normal crowd conditions"
+                                })
+                            elif sc == "buildup":
+                                is_focal = (i == focal_i)
+                                sim_zones.append({
+                                    "zone": f"Z{i + 1}",
+                                    "density": c,
+                                    "trend": "RISING" if is_focal else "STABLE",
+                                    "trend_delta": 2.2 if is_focal else 0.1,
+                                    "density_change": 3 if is_focal else 0,
+                                    "risk_score": 68.0 if is_focal else 15.0,
+                                    "risk_level": "HIGH" if is_focal else "LOW",
+                                    "risk_cause": "Sustained crowd build-up + Inflow surge" if is_focal else "Normal crowd conditions"
+                                })
+                            elif sc == "critical":
+                                is_crit = (i in (focal_i, sec_i))
+                                sim_zones.append({
+                                    "zone": f"Z{i + 1}",
+                                    "density": c,
+                                    "trend": "RISING" if is_crit else "STABLE",
+                                    "trend_delta": 3.5 if is_crit else 0.0,
+                                    "density_change": 5 if is_crit else 0,
+                                    "risk_score": 92.0 if i == focal_i else (88.0 if i == sec_i else 20.0),
+                                    "risk_level": "CRITICAL" if is_crit else "LOW",
+                                    "risk_cause": "Critical density compression + Bottleneck surge" if is_crit else "Normal crowd conditions"
+                                })
+                            elif sc == "dispersal":
+                                sim_zones.append({
+                                    "zone": f"Z{i + 1}",
+                                    "density": c,
+                                    "trend": "FALLING",
+                                    "trend_delta": -1.8,
+                                    "density_change": -2,
+                                    "risk_score": 35.0 if i == focal_i else 15.0,
+                                    "risk_level": "MEDIUM" if i == focal_i else "LOW",
+                                    "risk_cause": "Active crowd dispersal in progress"
+                                })
+                            else:
+                                sim_zones.append(base_z)
+                        working_zones = sim_zones
+                    else:
+                        working_zones = raw_zones
+
                     if role == "user":
                         # Sanitize zones for public users - remove trend math, delta, risk_score, causes
-                        raw_zones = zstate.get("zones", [])
                         sanitized_zones = []
-                        for z in raw_zones:
+                        for z in working_zones:
                             lvl = z.get("risk_level", "LOW")
                             c_status = "Crowded" if lvl in ("HIGH", "CRITICAL") else ("Moderate" if lvl == "MEDIUM" else "Low")
                             sanitized_zones.append({
@@ -366,15 +541,21 @@ class LivePreventionHandler(BaseHTTPRequestHandler):
                         public_zstate = {
                             "camera_id": req_cam,
                             "role": "user",
-                            "demo_mode": False,
+                            "demo_mode": is_demo,
                             "timestamp": zstate.get("timestamp", datetime.now().isoformat(timespec="seconds")),
                             "zones": sanitized_zones,
                         }
                         payload = json.dumps(public_zstate, indent=2).encode("utf-8")
                     else:
-                        zstate["demo_mode"] = False
-                        zstate["role"] = "manager"
-                        payload = json.dumps(zstate, indent=2).encode("utf-8")
+                        manager_zstate = {
+                            "camera_id": req_cam,
+                            "role": "manager",
+                            "demo_mode": is_demo,
+                            "timestamp": zstate.get("timestamp", datetime.now().isoformat(timespec="seconds")),
+                            "total_people": real_total,
+                            "zones": working_zones,
+                        }
+                        payload = json.dumps(manager_zstate, indent=2).encode("utf-8")
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -387,9 +568,16 @@ class LivePreventionHandler(BaseHTTPRequestHandler):
         # Per-camera density and risk history snapshots
         # --------------------------------------------------
         elif path in ("/history/density", "/api/history/density"):
-            with state_store.lock:
-                records = list(state_store.density_history.get(req_cam, []))
-            payload = json.dumps({"camera_id": req_cam, "history": records}, indent=2).encode("utf-8")
+            if role == "user":
+                payload = json.dumps({
+                    "status": "restricted",
+                    "role": "user",
+                    "message": "Operational density metrics are restricted to authorized venue managers."
+                }, indent=2).encode("utf-8")
+            else:
+                with state_store.lock:
+                    records = list(state_store.density_history.get(req_cam, []))
+                payload = json.dumps({"camera_id": req_cam, "history": records}, indent=2).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self._cors_headers()
@@ -398,15 +586,126 @@ class LivePreventionHandler(BaseHTTPRequestHandler):
             self.wfile.write(payload)
 
         elif path in ("/history/risk", "/api/history/risk"):
-            with state_store.lock:
-                records = list(state_store.risk_history.get(req_cam, []))
-            payload = json.dumps({"camera_id": req_cam, "history": records}, indent=2).encode("utf-8")
+            if role == "user":
+                payload = json.dumps({
+                    "status": "restricted",
+                    "role": "user",
+                    "message": "Operational risk metrics are restricted to authorized venue managers."
+                }, indent=2).encode("utf-8")
+            else:
+                with state_store.lock:
+                    records = list(state_store.risk_history.get(req_cam, []))
+                payload = json.dumps({"camera_id": req_cam, "history": records}, indent=2).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self._cors_headers()
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
             self.wfile.write(payload)
+        # --------------------------------------------------
+        # Camera-Derived Venue Spatial Model & Heatmap
+        # --------------------------------------------------
+        elif path in ("/api/venue/spatial", "/venue/spatial", "/api/camera/spatial", "/api/heatmap"):
+            with state_store.lock:
+                spatial_data = state_store.spatial_states.get(req_cam) or {}
+                raw_pstate = state_store.prevention_states.get(req_cam) or {}
+
+            cam_conf = CAMERAS.get(req_cam, {})
+            cname = cam_conf.get("name", req_cam.upper())
+            detections = spatial_data.get("detections", [])
+            hotspots = spatial_data.get("hotspots", [])
+            total_detected = spatial_data.get("total_people", raw_pstate.get("total_people", len(detections)))
+
+            # If demo mode is active, modulate scenario risk on top of real camera spatial field
+            if is_demo and dg:
+                sc = dg.scenario.lower()
+                mod_hotspots = []
+                for idx, h in enumerate(hotspots):
+                    h_copy = dict(h)
+                    if sc == "normal":
+                        h_copy["risk_level"] = "LOW"
+                        h_copy["risk_score"] = min(float(h.get("risk_score", 15.0)), 20.0)
+                        h_copy["trend"] = "STABLE"
+                    elif sc == "buildup":
+                        if idx == 0:
+                            h_copy["risk_level"] = "HIGH"
+                            h_copy["risk_score"] = 72.0
+                            h_copy["trend"] = "RISING"
+                    elif sc == "critical":
+                        if idx in (0, 1):
+                            h_copy["risk_level"] = "CRITICAL"
+                            h_copy["risk_score"] = 92.0 if idx == 0 else 88.0
+                            h_copy["trend"] = "RISING"
+                    elif sc == "dispersal":
+                        h_copy["trend"] = "FALLING"
+                        h_copy["risk_level"] = "MEDIUM" if idx == 0 else "LOW"
+                    mod_hotspots.append(h_copy)
+                working_hotspots = mod_hotspots
+            else:
+                working_hotspots = hotspots
+
+            if role == "user":
+                # Public-safe guidance response: strictly NO detections, NO coordinates, NO tracking IDs, NO internal risk scores
+                any_crowded = any(h.get("risk_level") in ("HIGH", "CRITICAL") for h in working_hotspots)
+                any_moderate = any(h.get("risk_level") in ("MEDIUM", "MODERATE") for h in working_hotspots)
+                c_status = "Crowded" if any_crowded else ("Moderate" if any_moderate else "Low")
+
+                payload = {
+                    "status": "active",
+                    "role": "user",
+                    "crowd_status": c_status,
+                    "guidance": "Please move calmly and follow directional signage." if any_crowded else "Area looks calm. Enjoy the event and keep moving comfortably.",
+                    "recommended_action": "Follow staff instructions and move toward recommended routes." if any_crowded else "Follow marked walkways at a steady pace.",
+                    "direction": "Follow marked concourses and designated exit paths.",
+                    "message": "Pedestrian paths are monitored for your safety. Follow navigation guides for the smoothest route.",
+                }
+            else:
+                # Manager response: full operational intelligence with 2D/3D camera-derived model & detections
+                cells = [
+                    {
+                        "cell_id": h["id"],
+                        "name": h["name"],
+                        "x": h["x"],
+                        "y": h["y"],
+                        "density": h["density"],
+                        "active_sessions": h["density"],
+                        "confidence": 1.0,
+                        "trend": h["trend"],
+                        "risk_score": h["risk_score"],
+                        "risk_level": h["risk_level"],
+                        "spatial_coord": h["spatial_coord"],
+                        "action": f"Direct movement toward clear pathways" if h["risk_level"] in ("HIGH", "CRITICAL") else "Normal pedestrian flow",
+                        "safe_alternative": "Clear Ground Region"
+                    }
+                    for h in working_hotspots
+                ]
+
+                payload = {
+                    "status": "active",
+                    "role": "manager",
+                    "camera_id": req_cam,
+                    "camera_name": cname,
+                    "model": "camera_derived_ground_plane",
+                    "coordinate_system": "Normalized Visible Ground Plane [0, 1] x [0, 1]",
+                    "timestamp": datetime.now().isoformat(timespec="seconds"),
+                    "demo_mode": is_demo,
+                    "demo_scenario": dg.scenario if is_demo and dg else "normal",
+                    "total_people": total_detected,
+                    "cell_count": len(cells),
+                    "cells": cells,
+                    "hotspots": working_hotspots,
+                    "detections": detections,
+                    "cameras": {
+                        cid: {"name": c["name"]} for cid, c in CAMERAS.items()
+                    }
+                }
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self._cors_headers()
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(json.dumps(payload, indent=2).encode("utf-8"))
 
         else:
             self.send_response(404)
@@ -444,6 +743,12 @@ def run_camera_processor(cam_id: str, cam_name: str, video_source: str):
     if not cap.isOpened():
         print(f"[{cam_id.upper()}] ERROR: Could not open {video_source}")
         return
+
+    # Start crowd_test.mp4 where people are already visible (skipping empty pavement opening)
+    is_crowd_test = ("crowd_test" in video_source.lower())
+    video_start_frame = 130 if is_crowd_test else 0
+    if video_start_frame > 0:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, video_start_frame)
 
     prev_gray = None
     camera_offset_x = 0
@@ -592,11 +897,13 @@ def run_camera_processor(cam_id: str, cam_name: str, video_source: str):
 
         # Continuous non-stop video playback loop
         if not ret:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            cap.set(cv2.CAP_PROP_POS_FRAMES, video_start_frame)
             ret, frame = cap.read()
             if not ret:
                 cap.release()
                 cap = cv2.VideoCapture(video_source)
+                if video_start_frame > 0:
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, video_start_frame)
                 ret, frame = cap.read()
                 if not ret:
                     time.sleep(0.05)
@@ -658,6 +965,8 @@ def run_camera_processor(cam_id: str, cam_name: str, video_source: str):
         tracked_centroids = []
         active_ids = set()
 
+        detected_persons = []
+        spatial_detections = []
         is_aerial = ("aerial" in cam_name.lower()) or ("square" in video_source.lower()) or ("pedestrian" in video_source.lower())
         min_conf = 0.25
 
@@ -685,10 +994,34 @@ def run_camera_processor(cam_id: str, cam_name: str, video_source: str):
 
                 zone_counts[zone_idx] += 1
 
+                tid = None
                 if track_ids is not None and i < len(track_ids):
-                    track_id = int(track_ids[i])
-                    active_ids.add(track_id)
-                    tracked_centroids.append((cx, cy, zone_idx, track_id))
+                    tid = int(track_ids[i])
+                    active_ids.add(tid)
+                    tracked_centroids.append((cx, cy, zone_idx, tid))
+
+                conf_val = float(confs[i]) if confs is not None else 1.0
+                detected_persons.append((int(x1), int(y1), int(x2), int(y2), tid, conf_val, zone_idx))
+
+                # Camera/Ground-plane spatial mapping
+                if is_aerial:
+                    gx = max(0.01, min(0.99, float(cx) / width))
+                    gy = max(0.01, min(0.99, float(cy) / height))
+                else:
+                    # Feet contact point perspective projection onto visible ground plane
+                    y_feet = float(y2)
+                    gy = max(0.01, min(0.99, (y_feet - 0.15 * height) / (0.85 * height)))
+                    gx = max(0.01, min(0.99, float(cx) / width))
+
+                spatial_detections.append({
+                    "id": tid,
+                    "x": round(gx, 4),
+                    "y": round(gy, 4),
+                    "pixel_x": int(cx),
+                    "pixel_y": int(cy),
+                    "conf": round(conf_val, 2),
+                    "zone": f"Z{zone_idx + 1}"
+                })
 
         # Zone flows
         current_incoming = [0] * 9
@@ -835,6 +1168,44 @@ def run_camera_processor(cam_id: str, cam_name: str, video_source: str):
 
         # Draw annotations on camera frame
         annotated_frame = frame.copy()
+
+        # Check if demo mode is active for HUD
+        dg_cur = get_demo_generator()
+        is_in_demo = (dg_cur is not None and dg_cur.camera_enabled)
+        sc_name = dg_cur.scenario.upper() if is_in_demo else "REAL-TIME"
+
+        # 1. Draw detected person bounding boxes and ByteTrack IDs
+        for bx1, by1, bx2, by2, tid, cval, z_idx in detected_persons:
+            bx1 = max(0, min(bx1, width - 1))
+            by1 = max(0, min(by1, height - 1))
+            bx2 = max(0, min(bx2, width - 1))
+            by2 = max(0, min(by2, height - 1))
+
+            z_lvl = risk_levels[z_idx]
+            box_color = (0, 235, 120)  # emerald green
+            if z_lvl == "CRITICAL":
+                box_color = (68, 68, 239)
+            elif z_lvl == "HIGH":
+                box_color = (22, 115, 249)
+            elif z_lvl == "MEDIUM":
+                box_color = (8, 179, 234)
+
+            cv2.rectangle(annotated_frame, (bx1, by1), (bx2, by2), box_color, 2)
+
+            # Person tag with Track ID & Confidence
+            tag = f"#{tid}" if tid is not None else "ID:--"
+            tag += f" {cval:.2f}"
+            (tw, th), _ = cv2.getTextSize(tag, cv2.FONT_HERSHEY_SIMPLEX, 0.38, 1)
+            tag_y = max(by1 - 4, th + 4)
+            cv2.rectangle(annotated_frame, (bx1, tag_y - th - 3), (bx1 + tw + 6, tag_y + 3), (15, 23, 42), -1)
+            cv2.putText(annotated_frame, tag, (bx1 + 3, tag_y), cv2.FONT_HERSHEY_SIMPLEX, 0.38, (255, 255, 255), 1, cv2.LINE_AA)
+
+            # Centroid point
+            cx_pt = int((bx1 + bx2) / 2)
+            cy_pt = int((by1 + by2) / 2)
+            cv2.circle(annotated_frame, (cx_pt, cy_pt), 3, (0, 255, 255), -1)
+
+        # 2. Draw 3x3 optical zone boundaries and counters
         for row in range(3):
             for col in range(3):
                 idx = row * 3 + col
@@ -845,12 +1216,81 @@ def run_camera_processor(cam_id: str, cam_name: str, video_source: str):
 
                 lvl = risk_levels[idx]
                 color = (34, 197, 94) if lvl == "LOW" else ((234, 179, 8) if lvl == "MEDIUM" else ((249, 115, 22) if lvl == "HIGH" else (239, 68, 68)))
-                cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
-                cv2.putText(annotated_frame, f"Z{idx + 1}: {zone_counts[idx]} ({lvl})", (x1 + 10, y1 + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+                cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 1)
 
-        # Header tag on top of frame
-        cv2.rectangle(annotated_frame, (0, 0), (width, 40), (15, 23, 42), -1)
-        cv2.putText(annotated_frame, f"CROWDSHIELD LIVE | {cam_name.upper()} | PEOPLE: {sum(zone_counts)}", (15, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                z_tag = f"Z{idx + 1}: {zone_counts[idx]} ({lvl})"
+                (zw, zh), _ = cv2.getTextSize(z_tag, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+                cv2.rectangle(annotated_frame, (x1 + 4, y1 + 4), (x1 + zw + 12, y1 + zh + 10), (15, 23, 42), -1)
+                cv2.putText(annotated_frame, z_tag, (x1 + 8, y1 + zh + 6), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1, cv2.LINE_AA)
+
+        # 3. Header HUD banner (consistent with status cards)
+        total_p = sum(zone_counts)
+        mode_label = f"DEMO ({sc_name})" if is_in_demo else "LIVE FEED"
+        header_text = f"CROWDSHIELD | {mode_label} | {cam_name.upper()} | PEOPLE: {total_p}"
+        cv2.rectangle(annotated_frame, (0, 0), (width, 36), (15, 23, 42), -1)
+        cv2.putText(annotated_frame, header_text, (12, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
+
+        # Cluster real detections into real camera spatial hotspots
+        hotspots = []
+        if spatial_detections:
+            clusters = []
+            used = [False] * len(spatial_detections)
+            for i, p1 in enumerate(spatial_detections):
+                if used[i]:
+                    continue
+                cl = [p1]
+                used[i] = True
+                for j, p2 in enumerate(spatial_detections):
+                    if not used[j]:
+                        dist = ((p1["x"] - p2["x"]) ** 2 + (p1["y"] - p2["y"]) ** 2) ** 0.5
+                        if dist <= 0.22:
+                            cl.append(p2)
+                            used[j] = True
+                clusters.append(cl)
+
+            clusters.sort(key=lambda c: len(c), reverse=True)
+            labels = ["A", "B", "C", "D", "E", "F", "G", "H"]
+
+            for k, cl in enumerate(clusters[:6]):
+                avg_x = sum(p["x"] for p in cl) / len(cl)
+                avg_y = sum(p["y"] for p in cl) / len(cl)
+                count = len(cl)
+                letter = labels[k] if k < len(labels) else f"{k+1}"
+
+                if count >= 8:
+                    lvl = "CRITICAL"
+                    score = round(min(98.0, 80.0 + count * 2.0), 1)
+                elif count >= 5:
+                    lvl = "HIGH"
+                    score = round(min(79.0, 60.0 + count * 3.0), 1)
+                elif count >= 3:
+                    lvl = "MEDIUM"
+                    score = round(min(59.0, 35.0 + count * 4.0), 1)
+                else:
+                    lvl = "LOW"
+                    score = round(min(34.0, 10.0 + count * 5.0), 1)
+
+                hotspots.append({
+                    "id": f"hotspot-{k + 1}",
+                    "name": f"Hotspot {letter} (X: {avg_x:.2f}, Y: {avg_y:.2f})",
+                    "x": round(avg_x, 4),
+                    "y": round(avg_y, 4),
+                    "density": count,
+                    "risk_level": lvl,
+                    "risk_score": score,
+                    "trend": "RISING" if count >= 4 else "STABLE",
+                    "spatial_coord": f"X {avg_x:.2f} / Y {avg_y:.2f}",
+                    "member_count": count
+                })
+
+        spatial_payload = {
+            "camera_id": cam_id,
+            "camera_name": cam_name,
+            "timestamp": zone_payload["timestamp"],
+            "total_people": int(sum(zone_counts)),
+            "detections": spatial_detections,
+            "hotspots": hotspots,
+        }
 
         # Encode JPEG for MJPEG stream
         ret_encode, jpeg_buffer = cv2.imencode(".jpg", annotated_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 75])
@@ -859,6 +1299,7 @@ def run_camera_processor(cam_id: str, cam_name: str, video_source: str):
                 state_store.jpegs[cam_id] = jpeg_buffer.tobytes()
                 state_store.zone_states[cam_id] = zone_payload
                 state_store.prevention_states[cam_id] = prevention_payload
+                state_store.spatial_states[cam_id] = spatial_payload
                 if frame_counter % 10 == 0:
                     state_store.density_history[cam_id].append({
                         "timestamp": zone_payload["timestamp"],

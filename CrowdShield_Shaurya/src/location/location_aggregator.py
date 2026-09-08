@@ -479,6 +479,8 @@ def evaluate_location_risk_and_prevention(user_role: str = "manager") -> dict:
         # Dynamic Safe Alternative Selection
         safe_alt = select_safe_alternative_area(target_cell_id, best_origin, candidate_areas) or "Nearby open area"
         action = generate_action_string(lvl, target_cell_id, safe_alt)
+        item["safe_alternative"] = safe_alt
+        item["action"] = action
 
         # Public non-alarming transformation
         if lvl == "CRITICAL":

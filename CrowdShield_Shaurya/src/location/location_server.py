@@ -39,6 +39,7 @@ import threading
 import time
 import re
 import urllib.parse
+import urllib.request
 from datetime import datetime, timezone, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -252,6 +253,19 @@ class LocationHandler(BaseHTTPRequestHandler):
         # GET /api/heatmap (and /location/heatmap)
         # --------------------------------------------------
         if path in ("/api/heatmap", "/location/heatmap", "/heatmap"):
+            req_cam = query.get("cam", [None])[0]
+            if req_cam:
+                try:
+                    url = f"http://127.0.0.1:8765/api/venue/spatial?cam={req_cam}&role={role}"
+                    if forced_demo is not None:
+                        url += f"&demo={forced_demo}"
+                    with urllib.request.urlopen(url, timeout=1.0) as resp:
+                        if resp.status == 200:
+                            self._respond(200, resp.read())
+                            return
+                except Exception:
+                    pass
+
             if is_demo and dg:
                 demo_data = dg.generate_heatmap_data(user_role=role)
                 payload = json.dumps(demo_data["heatmap"]).encode("utf-8")
@@ -273,6 +287,7 @@ class LocationHandler(BaseHTTPRequestHandler):
                         safe_alt = r_info.get("safe_alternative", "Nearby open area")
                         sanitized_cells.append({
                             "cell_id": cid,
+                            "name": c.get("name", cid),
                             "latitude": c["latitude"],
                             "longitude": c["longitude"],
                             "lat": c["latitude"],
@@ -280,6 +295,7 @@ class LocationHandler(BaseHTTPRequestHandler):
                             "crowd_status": c_status,
                             "safe_guidance": "Normal pedestrian conditions" if c_status == "Low" else ("Moderate movement — follow signage" if c_status == "Moderate" else f"Busy area — recommended path via {safe_alt}"),
                             "safer_area": safe_alt if c_status == "Crowded" else None,
+                            "safe_alternative": safe_alt if c_status in ("Moderate", "Crowded") else None,
                             "last_updated": c.get("last_updated", _now_iso()),
                         })
                     payload = json.dumps({
@@ -297,6 +313,7 @@ class LocationHandler(BaseHTTPRequestHandler):
                         r_info = risk_map.get(cid, {})
                         enriched_cells.append({
                             **c,
+                            "name": c.get("name", cid),
                             "risk_score": r_info.get("risk_score", 0.0),
                             "risk_level": r_info.get("risk_level", "LOW"),
                             "risk_cause": r_info.get("risk_cause", "Normal crowd conditions"),
@@ -305,6 +322,8 @@ class LocationHandler(BaseHTTPRequestHandler):
                             "incoming_flow": r_info.get("incoming_flow", 0),
                             "outgoing_flow": r_info.get("outgoing_flow", 0),
                             "baseline_deviation": r_info.get("baseline_deviation", 0.0),
+                            "safe_alternative": r_info.get("safe_alternative", None),
+                            "action": r_info.get("action", None),
                         })
                     payload = json.dumps({
                         "timestamp": _now_iso(),

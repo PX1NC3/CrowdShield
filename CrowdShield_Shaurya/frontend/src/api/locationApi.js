@@ -22,20 +22,31 @@ async function fetchWithTimeout(url, options = {}) {
 }
 
 /** Fetch the full heatmap data (all cells). */
-export async function fetchHeatmap(role = 'manager') {
-  const query = role ? `?role=${role}` : '';
+export async function fetchHeatmap(role = 'manager', demo = null, cam = null) {
+  const params = new URLSearchParams();
+  if (role) params.set('role', role);
+  if (demo !== null && demo !== undefined) params.set('demo', demo ? '1' : '0');
+  if (cam) params.set('cam', cam);
+  const query = params.toString() ? `?${params.toString()}` : '';
   return fetchWithTimeout(`${LOCATION_BASE}/api/heatmap${query}`);
 }
 
 /** Fetch only medium/high/critical risk areas. */
-export async function fetchAreas(role = 'manager') {
-  const query = role ? `?role=${role}` : '';
+export async function fetchAreas(role = 'manager', demo = null, cam = null) {
+  const params = new URLSearchParams();
+  if (role) params.set('role', role);
+  if (demo !== null && demo !== undefined) params.set('demo', demo ? '1' : '0');
+  if (cam) params.set('cam', cam);
+  const query = params.toString() ? `?${params.toString()}` : '';
   return fetchWithTimeout(`${LOCATION_BASE}/api/areas${query}`);
 }
 
 /** Fetch location server status/health. */
-export async function fetchLocationStatus(role = 'manager') {
-  const query = role ? `?role=${role}` : '';
+export async function fetchLocationStatus(role = 'manager', demo = null) {
+  const params = new URLSearchParams();
+  if (role) params.set('role', role);
+  if (demo !== null && demo !== undefined) params.set('demo', demo ? '1' : '0');
+  const query = params.toString() ? `?${params.toString()}` : '';
   return fetchWithTimeout(`${LOCATION_BASE}/api/location/status${query}`);
 }
 

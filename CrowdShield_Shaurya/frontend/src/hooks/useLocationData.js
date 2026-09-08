@@ -3,7 +3,15 @@
  * and manages opt-in location sharing.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { fetchHeatmap, fetchAreas, fetchLocationStatus, postLocationUpdate } from '../api/locationApi';
+import {
+  fetchHeatmap,
+  fetchAreas,
+  fetchLocationStatus,
+  postLocationUpdate,
+  toggleHeatmapDemo,
+  setHeatmapScenario,
+  LOCATION_BASE,
+} from '../api/locationApi';
 
 const POLL_MS = 5000;
 const SHARE_INTERVAL_MS = 15000;   // How often to upload own location (if sharing)
@@ -22,12 +30,12 @@ function anonymousSessionId() {
 function generateFrontendDemoData(scenario = 'normal', role = 'manager') {
   const now_iso = new Date().toISOString();
   const cells_meta = [
-    { cell_id: '18.5200_73.8570', lat: 18.5204, lon: 73.8567, name: 'Central Plaza & Main Gate' },
-    { cell_id: '18.5210_73.8570', lat: 18.5214, lon: 73.8567, name: 'North Promenade' },
-    { cell_id: '18.5190_73.8570', lat: 18.5194, lon: 73.8567, name: 'South Entrance Corridor' },
-    { cell_id: '18.5200_73.8580', lat: 18.5204, lon: 73.8577, name: 'East Transit Hub' },
-    { cell_id: '18.5200_73.8560', lat: 18.5204, lon: 73.8557, name: 'West Food Court Alley' },
-    { cell_id: '18.5210_73.8580', lat: 18.5214, lon: 73.8577, name: 'Northeast Overflow Grounds' },
+    { cell_id: 'hotspot-1', x: 0.50, y: 0.50, lat: 18.5204, lon: 73.8567, name: 'Hotspot A (X: 0.50, Y: 0.50)', spatial_coord: 'X 0.50 / Y 0.50' },
+    { cell_id: 'hotspot-2', x: 0.70, y: 0.35, lat: 18.5214, lon: 73.8567, name: 'Hotspot B (X: 0.70, Y: 0.35)', spatial_coord: 'X 0.70 / Y 0.35' },
+    { cell_id: 'hotspot-3', x: 0.35, y: 0.75, lat: 18.5194, lon: 73.8567, name: 'Hotspot C (X: 0.35, Y: 0.75)', spatial_coord: 'X 0.35 / Y 0.75' },
+    { cell_id: 'hotspot-4', x: 0.80, y: 0.65, lat: 18.5204, lon: 73.8577, name: 'Hotspot D (X: 0.80, Y: 0.65)', spatial_coord: 'X 0.80 / Y 0.65' },
+    { cell_id: 'hotspot-5', x: 0.20, y: 0.40, lat: 18.5204, lon: 73.8557, name: 'Hotspot E (X: 0.20, Y: 0.40)', spatial_coord: 'X 0.20 / Y 0.40' },
+    { cell_id: 'hotspot-6', x: 0.45, y: 0.15, lat: 18.5214, lon: 73.8577, name: 'Hotspot F (X: 0.45, Y: 0.15)', spatial_coord: 'X 0.45 / Y 0.15' },
   ];
 
   let densities, trends, risk_levels, risk_scores;
@@ -63,14 +71,18 @@ function generateFrontendDemoData(scenario = 'normal', role = 'manager') {
       return {
         cell_id: m.cell_id,
         name: m.name,
+        x: m.x,
+        y: m.y,
+        spatial_coord: m.spatial_coord,
         latitude: m.lat,
         longitude: m.lon,
         lat: m.lat,
         lon: m.lon,
         crowd_status,
-        safe_guidance: crowd_status === 'Crowded' ? `High activity at ${m.name}. Recommended alternate route: Northeast Overflow Grounds.` : `Clear and smooth passage at ${m.name}.`,
-        wayfinding: `Follow pedestrian wayfinding signs toward open grounds.`,
-        safer_area: crowd_status === 'Crowded' ? 'Northeast Overflow Grounds' : null,
+        safe_guidance: crowd_status === 'Crowded' ? `High activity at ${m.name}. Follow lane guidance toward open ground.` : `Clear and smooth passage at ${m.name}.`,
+        wayfinding: `Follow pedestrian wayfinding toward open ground.`,
+        safer_area: 'Clear Ground Region',
+        safe_alternative: 'Clear Ground Region',
         last_updated: now_iso,
       };
     }
@@ -78,6 +90,9 @@ function generateFrontendDemoData(scenario = 'normal', role = 'manager') {
     return {
       cell_id: m.cell_id,
       name: m.name,
+      x: m.x,
+      y: m.y,
+      spatial_coord: m.spatial_coord,
       latitude: m.lat,
       longitude: m.lon,
       lat: m.lat,
@@ -88,9 +103,9 @@ function generateFrontendDemoData(scenario = 'normal', role = 'manager') {
       trend: trends[idx],
       risk_score: r_score,
       risk_level: r_lvl,
-      risk_cause: 'GPS signal concentration + upward surge',
-      action: r_lvl === 'CRITICAL' ? `IMMEDIATE ACCESS CONTROL: Restrict inflow to ${m.name}` : `Monitor ${m.name} ingress rates`,
-      safe_alternative: 'Northeast Overflow Grounds',
+      risk_cause: 'Camera-derived pedestrian density concentration',
+      action: r_lvl === 'CRITICAL' ? `CAPACITY ALERT: Divert incoming pedestrians from ${m.name}` : `Monitor ${m.name} movement flow`,
+      safe_alternative: 'Clear Ground Region',
       last_updated: now_iso,
     };
   });
@@ -123,7 +138,7 @@ function generateFrontendDemoData(scenario = 'normal', role = 'manager') {
   };
 }
 
-export function useLocationData(role = 'manager') {
+export function useLocationData(role = 'manager', activeCam = 'cam1') {
   const [heatmap, setHeatmap]       = useState(null);
   const [areas, setAreas]           = useState(null);
   const [serverStatus, setServerStatus] = useState(null);
@@ -143,10 +158,11 @@ export function useLocationData(role = 'manager') {
   // ── Heatmap polling ───────────────────────────────────────────
   const pollHeatmap = useCallback(async () => {
     try {
+      const demoFlag = clientDemo ? true : null;
       const [hm, ar, st] = await Promise.all([
-        fetchHeatmap(role),
-        fetchAreas(role),
-        fetchLocationStatus(role),
+        fetchHeatmap(role, demoFlag, activeCam),
+        fetchAreas(role, demoFlag, activeCam),
+        fetchLocationStatus(role, demoFlag),
       ]);
       if (!mounted.current) return;
       setHeatmap(hm);
@@ -171,18 +187,14 @@ export function useLocationData(role = 'manager') {
       }
       setLoading(false);
     }
-  }, [role, clientDemo, clientScenario]);
+  }, [role, activeCam, clientDemo, clientScenario]);
 
   const toggleDemoMode = useCallback(async (enabled) => {
     const nextState = enabled !== null ? Boolean(enabled) : !clientDemo;
     setClientDemo(nextState);
     localStorage.setItem('cs_loc_demo', String(nextState));
     try {
-      await fetch(`${LOCATION_BASE}/api/demo/toggle`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: nextState }),
-      });
+      await toggleHeatmapDemo(nextState, clientScenario);
     } catch { /* client-side fallback handles it */ }
     // Update local state immediately
     const demoData = generateFrontendDemoData(clientScenario, role);
@@ -192,26 +204,23 @@ export function useLocationData(role = 'manager') {
       setServerStatus(demoData.serverStatus);
       setBackendOnline(true);
       setError(null);
-    } else {
-      pollHeatmap();
     }
+    // Re-poll backend to sync
+    await pollHeatmap();
   }, [clientDemo, clientScenario, role, pollHeatmap]);
 
   const setScenario = useCallback(async (scenario) => {
     setClientScenario(scenario);
     localStorage.setItem('cs_loc_scenario', scenario);
     try {
-      await fetch(`${LOCATION_BASE}/api/demo/scenario`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scenario }),
-      });
+      await setHeatmapScenario(scenario);
     } catch { /* client-side fallback handles it */ }
     const demoData = generateFrontendDemoData(scenario, role);
     setHeatmap(demoData.heatmap);
     setAreas(demoData.areas);
     setServerStatus(demoData.serverStatus);
-  }, [role]);
+    await pollHeatmap();
+  }, [role, pollHeatmap]);
 
   useEffect(() => {
     mounted.current = true;

@@ -1,0 +1,312 @@
+/* ============================================================
+   CrowdShield — 3D Crowd Spatial Model Styling
+   ============================================================ */
+
+.crowd-spatial-3d {
+  position: relative;
+  width: 100%;
+  height: 480px;
+  min-height: 440px;
+  background: radial-gradient(circle at 50% 30%, #151922 0%, #0a0c10 100%);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+}
+
+.crowd-spatial-3d__canvas-container {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+
+.crowd-spatial-3d__canvas-container:active {
+  cursor: grabbing;
+}
+
+.crowd-spatial-3d__canvas-container canvas,
+.crowd-spatial-3d__canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+  outline: none;
+}
+
+/* ── HUD Header Overlay ────────────────────────────────────── */
+.crowd-spatial-3d__hud-header {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.crowd-spatial-3d__cam-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  pointer-events: auto;
+}
+
+.crowd-spatial-3d__cam-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--risk-low);
+  box-shadow: 0 0 8px var(--risk-low);
+}
+
+.crowd-spatial-3d__cam-dot--alert {
+  background: var(--risk-critical);
+  box-shadow: 0 0 10px var(--risk-critical);
+  animation: pulse 1.5s infinite;
+}
+
+.crowd-spatial-3d__hud-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.crowd-spatial-3d__reset-btn {
+  padding: 5px 12px;
+  background: rgba(30, 41, 59, 0.8);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.crowd-spatial-3d__reset-btn:hover {
+  background: rgba(51, 65, 85, 0.9);
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+/* ── HUD Legend Overlay ────────────────────────────────────── */
+.crowd-spatial-3d__legend {
+  position: absolute;
+  bottom: 14px;
+  left: 16px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  font-size: 0.7rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+}
+
+.crowd-spatial-3d__legend-title {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.crowd-spatial-3d__legend-items {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.crowd-spatial-3d__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.crowd-spatial-3d__legend-color {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+/* ── HUD Guidance Help Overlay ─────────────────────────────── */
+.crowd-spatial-3d__nav-help {
+  position: absolute;
+  bottom: 14px;
+  right: 16px;
+  z-index: 10;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(4px);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Selected Zone Floating Card ───────────────────────────── */
+.crowd-spatial-3d__zone-popup {
+  position: absolute;
+  top: 58px;
+  left: 16px;
+  z-index: 12;
+  min-width: 210px;
+  padding: 10px 14px;
+  background: rgba(26, 29, 38, 0.94);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  animation: slideIn 0.2s ease;
+  pointer-events: auto;
+}
+
+.crowd-spatial-3d__zone-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.crowd-spatial-3d__zone-popup-title {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.crowd-spatial-3d__zone-popup-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.crowd-spatial-3d__zone-popup-stats strong {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+
+.crowd-spatial-3d__zone-popup-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.crowd-spatial-3d__zone-popup-close:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+/* ── Empty / Loading Overlay ───────────────────────────────── */
+.crowd-spatial-3d__empty-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(10, 12, 16, 0.75);
+  backdrop-filter: blur(6px);
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.crowd-spatial-3d__empty-icon {
+  font-size: 2.2rem;
+  animation: float 2.5s ease-in-out infinite;
+}
+
+.crowd-spatial-3d__empty-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.crowd-spatial-3d__empty-sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  max-width: 320px;
+  text-align: center;
+}
+
+/* ── View Toggle Switcher Component ────────────────────────── */
+.spatial-view-toggle {
+  display: flex;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  padding: 2px;
+  gap: 2px;
+}
+
+.spatial-view-toggle-btn {
+  padding: 4px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.spatial-view-toggle-btn:hover {
+  color: var(--text-primary);
+}
+
+.spatial-view-toggle-btn--active {
+  background: var(--accent);
+  color: white;
+  box-shadow: 0 2px 8px var(--accent-glow);
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}

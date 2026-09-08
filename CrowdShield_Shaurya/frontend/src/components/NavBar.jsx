@@ -1,25 +1,30 @@
 /**
- * NavBar — bottom mobile navigation bar.
- * Public User role only sees Dashboard and Settings.
- * Manager role has access to all tabs (Dashboard, Camera, Heatmap, Alerts, Settings).
+ * NavBar — bottom navigation bar.
+ * Strict Role-based Isolation:
+ * - Public User: Only sees Home, Guidance, Help (NO Camera, NO Heatmap, NO Alerts, NO Settings).
+ * - Manager: Has access to full control center (Dashboard, Camera, Heatmap, Alerts, Settings).
  */
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import './NavBar.css';
 
-const ALL_NAV_ITEMS = [
-  { to: '/',         icon: '⬡',  label: 'Dashboard', roles: ['user', 'manager'] },
-  { to: '/camera',   icon: '📷', label: 'Camera',    roles: ['manager'] },
-  { to: '/heatmap',  icon: '🗺',  label: 'Heatmap',   roles: ['manager'] },
-  { to: '/alerts',   icon: '🔔', label: 'Alerts',    roles: ['manager'] },
-  { to: '/settings', icon: '⚙',  label: 'Settings',  roles: ['user', 'manager'] },
+const MANAGER_NAV_ITEMS = [
+  { to: '/',         icon: '⬡',  label: 'Dashboard' },
+  { to: '/camera',   icon: '📹', label: 'Camera' },
+  { to: '/heatmap',  icon: '🗺️', label: 'Heatmap' },
+  { to: '/alerts',   icon: '🔔', label: 'Alerts' },
+  { to: '/settings', icon: '⚙️', label: 'Settings' },
+];
+
+const PUBLIC_NAV_ITEMS = [
+  { to: '/',         icon: '🏠', label: 'Home' },
+  { to: '/guidance', icon: '📍', label: 'Guidance' },
+  { to: '/help',     icon: 'ℹ️', label: 'Help' },
 ];
 
 export default function NavBar({ threatCount = 0 }) {
-  const { role } = useAuth();
-  const currentRole = role || 'user';
-
-  const visibleNavItems = ALL_NAV_ITEMS.filter(item => item.roles.includes(currentRole));
+  const { isManager } = useAuth();
+  const visibleNavItems = isManager ? MANAGER_NAV_ITEMS : PUBLIC_NAV_ITEMS;
 
   return (
     <nav className="navbar" role="navigation" aria-label="Main navigation">
@@ -36,7 +41,7 @@ export default function NavBar({ threatCount = 0 }) {
           >
             <span className="navbar__icon">
               {icon}
-              {label === 'Alerts' && threatCount > 0 && (
+              {label === 'Alerts' && threatCount > 0 && isManager && (
                 <span className="navbar__badge">{threatCount > 9 ? '9+' : threatCount}</span>
               )}
             </span>

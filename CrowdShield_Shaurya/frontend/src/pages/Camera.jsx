@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useCameraData } from '../hooks/useCameraData';
 import ZoneMap from '../components/ZoneMap';
+import CrowdSpatial3D from '../components/CrowdSpatial3D';
 import RiskBadge from '../components/RiskBadge';
 import ThreatCard from '../components/ThreatCard';
 import { getStreamUrl, toggleCameraDemo, setCameraScenario } from '../api/cameraApi';
@@ -13,6 +14,7 @@ import './Camera.css';
 
 export default function Camera() {
   const [activeCam, setActiveCam] = useState('cam1');
+  const [zoneViewMode, setZoneViewMode] = useState('3d'); // '3d' | '2d'
   const { role, isManager, switchRolePrompt, selectUserRole } = useAuth();
   const { prevention, zones, loading, error, backendOnline, lastUpdated, isDemoMode, demoScenario, refetch } = useCameraData(activeCam, role);
   const [selectedZone, setSelectedZone] = useState(null);
@@ -88,7 +90,7 @@ export default function Camera() {
           )}
         </h1>
 
-        {/* ── Role Bar ────────────────────────────── */}
+        {/* ── Role & Live/Demo Mode Bar ────────────────────────────── */}
         <div className="mode-toggle-group">
           <div className="role-switch" role="group" aria-label="User View Role">
             <button
@@ -108,8 +110,49 @@ export default function Camera() {
               🚶 Public
             </button>
           </div>
+
+          <div className="mode-switch">
+            <button
+              className={`mode-btn ${!isDemoMode ? 'mode-btn--active-live' : ''}`}
+              onClick={() => isDemoMode && handleToggleDemo()}
+            >
+              LIVE
+            </button>
+            <button
+              className={`mode-btn ${isDemoMode ? 'mode-btn--active-demo' : ''}`}
+              onClick={() => !isDemoMode && handleToggleDemo()}
+            >
+              DEMO
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* ── Demo Scenario Controls ────────────────────────────── */}
+      {isDemoMode && (
+        <section className="demo-controls-card card animate-slide-in" style={{ marginBottom: 16 }}>
+          <div className="demo-controls-header">
+            <span className="demo-tag">CAMERA DEMO SIMULATION SCENARIOS</span>
+            <span className="demo-hint">Simulates YOLO crowd surge, ByteTrack tracking, 3×3 zone density & risk escalations</span>
+          </div>
+          <div className="scenario-buttons">
+            {[
+              { id: 'normal', label: '1. Normal Crowd', icon: '🟢' },
+              { id: 'buildup', label: '2. Crowd Build-up', icon: '🟡' },
+              { id: 'critical', label: '3. High/Critical Risk', icon: '🔴' },
+              { id: 'dispersal', label: '4. Dispersal', icon: '🔵' },
+            ].map(sc => (
+              <button
+                key={sc.id}
+                className={`scenario-btn ${demoScenario === sc.id ? 'scenario-btn--active' : ''}`}
+                onClick={() => handleScenarioChange(sc.id)}
+              >
+                <span>{sc.icon}</span> {sc.label}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ── Dynamic Multi-Camera Switcher Bar ──────────────────────────── */}
       <section className="camera-switcher-bar card" aria-label="Camera feed selector">
@@ -170,6 +213,7 @@ export default function Camera() {
               className={`camera-stream${streamReady ? ' camera-stream--loaded' : ''}`}
               src={getStreamUrl(activeCam)}
               alt={`Live annotated camera feed for ${activeCam}`}
+              onLoad={() => setStreamReady(true)}
               onError={() => {
                 // Give 3s grace before marking stream as broken
                 setTimeout(() => setStreamError(true), 3000);
@@ -260,16 +304,51 @@ export default function Camera() {
         </div>
       </div>
 
-      {/* ── Zone map ──────────────────────────────────────────── */}
+      {/* ── Zone map / 3D Spatial Model ──────────────────────────── */}
       <section aria-label="Zone density map">
-        <div className="section-heading">
-          <span>⬡</span> {isManager ? `Zone Map (${activeCam.toUpperCase()})` : `Pathway Guidance Map (${activeCam.toUpperCase()})`}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+          <div className="section-heading" style={{ margin: 0 }}>
+            <span>{zoneViewMode === '3d' ? '🧊' : '⬡'}</span> {isManager ? `Zone Spatial Map (${activeCam.toUpperCase()})` : `Pathway Guidance Map (${activeCam.toUpperCase()})`}
+          </div>
+          <div className="zone-view-toggle" role="group" aria-label="Spatial visualization view selector" style={{ display: 'flex', gap: 6 }}>
+            <button
+              type="button"
+              className={`btn btn-sm ${zoneViewMode === '3d' ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => setZoneViewMode('3d')}
+              title="Interactive 3D Spatial Crowd Model"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
+            >
+              <span>🧊</span> 3D Spatial
+            </button>
+            <button
+              type="button"
+              className={`btn btn-sm ${zoneViewMode === '2d' ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => setZoneViewMode('2d')}
+              title="Classic 2D Grid Map"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
+            >
+              <span>⬡</span> 2D Grid
+            </button>
+          </div>
         </div>
-        <ZoneMap
-          zones={zoneList}
-          onZoneClick={setSelectedZone}
-          highlightZone={highlighted}
-        />
+
+        {zoneViewMode === '3d' ? (
+          <CrowdSpatial3D
+            cameraId={activeCam}
+            cameraName={camerasMeta[activeCam]?.name || activeCam.toUpperCase()}
+            zones={zoneList}
+            prevention={prevention}
+            selectedZone={selectedZone || highlighted}
+            onZoneClick={setSelectedZone}
+            isManager={isManager}
+          />
+        ) : (
+          <ZoneMap
+            zones={zoneList}
+            onZoneClick={setSelectedZone}
+            highlightZone={highlighted}
+          />
+        )}
       </section>
 
       {/* ── Selected zone detail ──────────────────────────────── */}

@@ -70,15 +70,15 @@ export default function RoleSelectModal() {
             <div className="role-info-box">
               <div className="role-info-item">
                 <span className="role-info-check">✓</span>
-                <span>Live safe crowd maps & area congestion updates</span>
+                <span>Calm real-time walking guidance &amp; safe flow updates</span>
               </div>
               <div className="role-info-item">
                 <span className="role-info-check">✓</span>
-                <span>Recommended alternate pedestrian paths & clear routes</span>
+                <span>Clear exit wayfinding &amp; recommended walking paths</span>
               </div>
               <div className="role-info-item">
                 <span className="role-info-check">✓</span>
-                <span>No login or personal tracking required</span>
+                <span>Strict privacy: No tracking, no camera feeds, no login</span>
               </div>
             </div>
 

@@ -250,48 +250,36 @@ class DemoDataGenerator:
 
         total_people = int(sum(zone_counts))
 
-        # Camera summary meta for multi-camera switcher
+        # Camera summary meta for multi-camera switcher (CAM 1 and CAM 2 match data/videos)
         if user_role == "manager":
             cameras_summary = {
                 "cam1": {
-                    "name": "CAM 1 - Main Concourse",
-                    "risk_level": highest_lvl,
-                    "threat_count": len(threats),
-                    "total_people": total_people,
-                    "has_serious_threat": highest_lvl in ("HIGH", "CRITICAL"),
+                    "name": "CAM 1 - Crowd Test",
+                    "risk_level": highest_lvl if cam_id == "cam1" else "LOW",
+                    "threat_count": len(threats) if cam_id == "cam1" else 0,
+                    "total_people": total_people if cam_id == "cam1" else int(total_people * 0.5),
+                    "has_serious_threat": (highest_lvl in ("HIGH", "CRITICAL")) if cam_id == "cam1" else False,
                 },
                 "cam2": {
-                    "name": "CAM 2 - North Gate",
-                    "risk_level": "LOW" if self.scenario != "critical" else "MEDIUM",
-                    "threat_count": 0 if self.scenario != "critical" else 1,
-                    "total_people": int(total_people * 0.4),
-                    "has_serious_threat": False,
-                },
-                "cam3": {
-                    "name": "CAM 3 - South Plaza",
-                    "risk_level": "MEDIUM" if self.scenario in ("buildup", "critical") else "LOW",
-                    "threat_count": 1 if self.scenario in ("buildup", "critical") else 0,
-                    "total_people": int(total_people * 0.6),
-                    "has_serious_threat": False,
+                    "name": "CAM 2 - Busy Pedestrian Street",
+                    "risk_level": highest_lvl if cam_id == "cam2" else ("LOW" if self.scenario != "critical" else "MEDIUM"),
+                    "threat_count": len(threats) if cam_id == "cam2" else (0 if self.scenario != "critical" else 1),
+                    "total_people": total_people if cam_id == "cam2" else int(total_people * 0.4),
+                    "has_serious_threat": (highest_lvl in ("HIGH", "CRITICAL")) if cam_id == "cam2" else False,
                 },
             }
         else:
             # Public camera summary
             cameras_summary = {
                 "cam1": {
-                    "name": "CAM 1 - Main Concourse",
-                    "crowd_status": highest_lvl,
+                    "name": "CAM 1 - Crowd Test",
+                    "crowd_status": highest_lvl if cam_id == "cam1" else "Low",
                     "notice": "Active monitoring",
                 },
                 "cam2": {
-                    "name": "CAM 2 - North Gate",
-                    "crowd_status": "Low",
+                    "name": "CAM 2 - Busy Pedestrian Street",
+                    "crowd_status": highest_lvl if cam_id == "cam2" else "Low",
                     "notice": "Clear routes available",
-                },
-                "cam3": {
-                    "name": "CAM 3 - South Plaza",
-                    "crowd_status": "Moderate" if self.scenario in ("buildup", "critical") else "Low",
-                    "notice": "Normal movement",
                 },
             }
 
@@ -479,15 +467,14 @@ class DemoDataGenerator:
         osc = math.sin(t * 0.4)
         osc_fast = math.sin(t * 1.1)
 
-        # 6 core geographic grid cells in a realistic pedestrian district
-        # (Connaught Place / Shaniwar Wada vicinity grid)
+        # Camera-derived spatial grid hotspots
         cells_meta = [
-            {"cell_id": "18.5200_73.8570", "lat": 18.5204, "lon": 73.8567, "name": "Central Plaza & Main Gate"},
-            {"cell_id": "18.5210_73.8570", "lat": 18.5214, "lon": 73.8567, "name": "North Promenade"},
-            {"cell_id": "18.5190_73.8570", "lat": 18.5194, "lon": 73.8567, "name": "South Entrance Corridor"},
-            {"cell_id": "18.5200_73.8580", "lat": 18.5204, "lon": 73.8577, "name": "East Transit Hub"},
-            {"cell_id": "18.5200_73.8560", "lat": 18.5204, "lon": 73.8557, "name": "West Food Court Alley"},
-            {"cell_id": "18.5210_73.8580", "lat": 18.5214, "lon": 73.8577, "name": "Northeast Overflow Grounds"},
+            {"cell_id": "18.5200_73.8570", "lat": 18.5204, "lon": 73.8567, "x": 0.50, "y": 0.50, "name": "Hotspot A (X: 0.50, Y: 0.50)"},
+            {"cell_id": "18.5210_73.8570", "lat": 18.5214, "lon": 73.8567, "x": 0.50, "y": 0.20, "name": "Hotspot B (X: 0.50, Y: 0.20)"},
+            {"cell_id": "18.5190_73.8570", "lat": 18.5194, "lon": 73.8567, "x": 0.50, "y": 0.80, "name": "Hotspot C (X: 0.50, Y: 0.80)"},
+            {"cell_id": "18.5200_73.8580", "lat": 18.5204, "lon": 73.8577, "x": 0.80, "y": 0.50, "name": "Hotspot D (X: 0.80, Y: 0.50)"},
+            {"cell_id": "18.5200_73.8560", "lat": 18.5204, "lon": 73.8557, "x": 0.20, "y": 0.50, "name": "Hotspot E (X: 0.20, Y: 0.50)"},
+            {"cell_id": "18.5210_73.8580", "lat": 18.5214, "lon": 73.8577, "x": 0.80, "y": 0.20, "name": "Hotspot F (X: 0.80, Y: 0.20)"},
         ]
 
         if self.scenario == "normal":
@@ -527,9 +514,9 @@ class DemoDataGenerator:
                 max(12, int(35 - 3 * osc)),
                 max(8, int(22 - 2 * osc)),
                 max(10, int(25 - 2 * osc)),
-                max(14, int(38 + 4 * osc)),  # Dispersing outward toward transit
+                max(14, int(38 + 4 * osc)),
                 max(10, int(20 - 2 * osc)),
-                max(16, int(32 + 3 * osc)),  # Dispersing to overflow
+                max(16, int(32 + 3 * osc)),
             ]
             trends = ["FALLING", "FALLING", "FALLING", "STABLE", "FALLING", "RISING"]
             risk_levels = ["MEDIUM", "LOW", "LOW", "LOW", "LOW", "LOW"]
@@ -550,14 +537,14 @@ class DemoDataGenerator:
             # Public vs Manager recommendation
             if r_lvl == "CRITICAL":
                 crowd_status = "Crowded"
-                mgr_action = f"IMMEDIATE ACCESS CONTROL: Restrict inflow to {m['name']} | Direct crowd to East Transit Hub / Overflow"
-                user_action = f"High activity at {m['name']}. Recommended alternate route: Northeast Overflow Grounds."
-                nav_guidance = "Area is currently busy. Follow wayfinding signs toward East Transit Hub."
+                mgr_action = f"IMMEDIATE ACCESS CONTROL: Restrict inflow to {m['name']} | Direct crowd toward clear ground plane"
+                user_action = f"High density in {m['name']}. Recommended alternate: open pathways."
+                nav_guidance = "Area is currently busy. Follow wayfinding signs toward clear grounds."
             elif r_lvl == "HIGH":
                 crowd_status = "Moderate"
-                mgr_action = f"CROWD REDIRECTION: Deploy marshals at {m['name']} | Encourage movement toward North Promenade"
-                user_action = f"Moderate movement at {m['name']}. Clearer walking route available via North Promenade."
-                nav_guidance = "Smooth flow observed toward North Promenade."
+                mgr_action = f"CROWD REDIRECTION: Deploy marshals at {m['name']} | Encourage movement toward open area"
+                user_action = f"Moderate movement at {m['name']}. Clearer route available nearby."
+                nav_guidance = "Smooth flow observed toward perimeter paths."
             elif r_lvl == "MEDIUM":
                 crowd_status = "Moderate"
                 mgr_action = f"MONITORING: Monitor {m['name']} ingress rates | Standby redirection"

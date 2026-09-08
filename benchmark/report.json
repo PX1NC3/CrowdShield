@@ -1,0 +1,166 @@
+{
+  "timestamp": "2026-09-09 01:32:22",
+  "settings": {
+    "imgsz": 960,
+    "conf": 0.25,
+    "classes": [
+      0
+    ],
+    "frames_per_camera": 80,
+    "tracker": "bytetrack.yaml"
+  },
+  "cam1": {
+    "video": "crowd_test.mp4",
+    "start_frame": 130,
+    "yolov8n": {
+      "model_name": "YOLOv8n",
+      "model_path": "CrowdShield_Shaurya\\models\\yolov8n.pt",
+      "total_frames_evaluated": 80,
+      "total_detections": 562,
+      "avg_detections_per_frame": 7.03,
+      "max_detections_in_one_frame": 10,
+      "min_detections_in_one_frame": 5,
+      "avg_confidence": 0.6608,
+      "min_confidence": 0.2501,
+      "max_confidence": 0.9064,
+      "unique_track_ids": 19,
+      "avg_latency_ms": 113.57,
+      "median_latency_ms": 105.84,
+      "p95_latency_ms": 161.11,
+      "approx_fps": 8.8,
+      "zero_detection_frames": 0
+    },
+    "person_best": {
+      "model_name": "person_best.pt",
+      "model_path": "CrowdShield_Shaurya\\models\\person_best.pt",
+      "total_frames_evaluated": 80,
+      "total_detections": 142,
+      "avg_detections_per_frame": 1.77,
+      "max_detections_in_one_frame": 4,
+      "min_detections_in_one_frame": 0,
+      "avg_confidence": 0.5173,
+      "min_confidence": 0.2522,
+      "max_confidence": 0.7752,
+      "unique_track_ids": 9,
+      "avg_latency_ms": 93.09,
+      "median_latency_ms": 89.65,
+      "p95_latency_ms": 127.95,
+      "approx_fps": 10.7,
+      "zero_detection_frames": 3
+    },
+    "comparison": {
+      "avg_detections_per_frame": {
+        "yolov8n": 7.03,
+        "person_best": 1.77,
+        "pct_change": -74.82
+      },
+      "max_detections_in_one_frame": {
+        "yolov8n": 10,
+        "person_best": 4,
+        "pct_change": -60.0
+      },
+      "avg_confidence": {
+        "yolov8n": 0.6608,
+        "person_best": 0.5173,
+        "pct_change": -21.72
+      },
+      "unique_track_ids": {
+        "yolov8n": 19,
+        "person_best": 9,
+        "pct_change": -52.63
+      },
+      "avg_latency_ms": {
+        "yolov8n": 113.57,
+        "person_best": 93.09,
+        "pct_change": -18.03
+      },
+      "approx_fps": {
+        "yolov8n": 8.8,
+        "person_best": 10.7,
+        "pct_change": 21.59
+      },
+      "zero_detection_frames": {
+        "yolov8n": 0,
+        "person_best": 3,
+        "diff": 3
+      }
+    }
+  },
+  "cam2": {
+    "video": "stock-footage-busy-pedestrian-street-crowd-people-walking-on-around-city-square-view-from-the-top-aerial-shoot.webm",
+    "start_frame": 20,
+    "yolov8n": {
+      "model_name": "YOLOv8n",
+      "model_path": "CrowdShield_Shaurya\\models\\yolov8n.pt",
+      "total_frames_evaluated": 80,
+      "total_detections": 2269,
+      "avg_detections_per_frame": 28.36,
+      "max_detections_in_one_frame": 41,
+      "min_detections_in_one_frame": 19,
+      "avg_confidence": 0.5304,
+      "min_confidence": 0.2512,
+      "max_confidence": 0.909,
+      "unique_track_ids": 150,
+      "avg_latency_ms": 96.94,
+      "median_latency_ms": 93.59,
+      "p95_latency_ms": 135.33,
+      "approx_fps": 10.3,
+      "zero_detection_frames": 0
+    },
+    "person_best": {
+      "model_name": "person_best.pt",
+      "model_path": "CrowdShield_Shaurya\\models\\person_best.pt",
+      "total_frames_evaluated": 80,
+      "total_detections": 3891,
+      "avg_detections_per_frame": 48.64,
+      "max_detections_in_one_frame": 100,
+      "min_detections_in_one_frame": 32,
+      "avg_confidence": 0.408,
+      "min_confidence": 0.2518,
+      "max_confidence": 0.7432,
+      "unique_track_ids": 507,
+      "avg_latency_ms": 110.19,
+      "median_latency_ms": 105.14,
+      "p95_latency_ms": 143.22,
+      "approx_fps": 9.1,
+      "zero_detection_frames": 0
+    },
+    "comparison": {
+      "avg_detections_per_frame": {
+        "yolov8n": 28.36,
+        "person_best": 48.64,
+        "pct_change": 71.51
+      },
+      "max_detections_in_one_frame": {
+        "yolov8n": 41,
+        "person_best": 100,
+        "pct_change": 143.9
+      },
+      "avg_confidence": {
+        "yolov8n": 0.5304,
+        "person_best": 0.408,
+        "pct_change": -23.08
+      },
+      "unique_track_ids": {
+        "yolov8n": 150,
+        "person_best": 507,
+        "pct_change": 238.0
+      },
+      "avg_latency_ms": {
+        "yolov8n": 96.94,
+        "person_best": 110.19,
+        "pct_change": 13.67
+      },
+      "approx_fps": {
+        "yolov8n": 10.3,
+        "person_best": 9.1,
+        "pct_change": -11.65
+      },
+      "zero_detection_frames": {
+        "yolov8n": 0,
+        "person_best": 0,
+        "diff": 0
+      }
+    }
+  }
+}

@@ -1,107 +1,95 @@
 /**
- * Heatmap — location-based crowd density map using Leaflet.
- * Uses a canvas-based heatmap drawn manually (no external leaflet.heat dependency).
+ * Heatmap.jsx
+ * 
+ * Camera-Derived Venue Crowd Intelligence Heatmap for CrowdShield.
+ * Derived directly from real camera footage and YOLOv8n + ByteTrack detections.
+ * 
+ * Dual synchronized visualizations:
+ *   [ 2D VENUE ] — Real spatial distribution on visible camera ground plane
+ *   [ 3D VENUE ] — Shared continuous intelligence surface (Height = Density, Color = Risk)
+ * 
+ * Both modes share the exact same spatial crowd field with 100% mathematical correspondence.
  */
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { MapContainer, TileLayer, useMap, CircleMarker, Popup } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
+
+import { useState, useMemo } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useLocationData } from '../hooks/useLocationData';
-import { toggleHeatmapDemo, setHeatmapScenario } from '../api/locationApi';
+import { toggleCameraDemo, setCameraScenario } from '../api/cameraApi';
+import VenueHeatmap2D from '../components/VenueHeatmap2D';
+import VenueHeatmap3D from '../components/VenueHeatmap3D';
 import RiskBadge from '../components/RiskBadge';
-import { riskColor, riskBg, trendIcon, trendClass } from '../utils';
+import { trendIcon, trendClass } from '../utils';
+import { normalizeHeatmapData, RISK_PALETTE, CAMERA_VENUE_INFO } from '../utils/venueHeatmapModel';
 import './Heatmap.css';
-
-// ── Leaflet default marker icon fix ──────────────────────────
-import L from 'leaflet';
-try {
-  if (L?.Icon?.Default?.prototype) {
-    delete L.Icon.Default.prototype._getIconUrl;
-    L.Icon.Default.mergeOptions({
-      iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-      iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-      shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-    });
-  }
-} catch {
-  /* safe ignore */
-}
-
-// Default map centre (matches demo seed data in location_server.py)
-const DEFAULT_CENTER = [18.5204, 73.8567];
-const DEFAULT_ZOOM   = 14;
-
-/** Circle radius for a cell, scaled by density. */
-function cellRadius(density) {
-  return Math.max(18, Math.min(density * 2.5, 80));
-}
-
-/** Intensity → RGBA colour string for the heatmap gradient. */
-function intensityColor(intensity, riskLevel) {
-  const base = riskColor(riskLevel);
-  const alpha = Math.max(0.2, Math.min(intensity * 0.75, 0.85));
-  // Convert CSS var to a concrete colour via inline approach
-  const colorMap = {
-    LOW:      `rgba(34,197,94,${alpha})`,
-    MEDIUM:   `rgba(245,158,11,${alpha})`,
-    HIGH:     `rgba(249,115,22,${alpha})`,
-    CRITICAL: `rgba(239,68,68,${alpha})`,
-  };
-  return colorMap[riskLevel] ?? `rgba(99,102,241,${alpha})`;
-}
-
-/** Auto-fit the map to visible cells. */
-function MapFitter({ cells }) {
-  const map = useMap();
-  useEffect(() => {
-    if (!cells || cells.length === 0) return;
-    const bounds = cells.map(c => [c.lat, c.lon]);
-    if (bounds.length > 0) {
-      try { map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 }); }
-      catch { /* no-op */ }
-    }
-  }, [cells?.length]);
-  return null;
-}
 
 export default function Heatmap() {
   const { role, isManager, switchRolePrompt, selectUserRole } = useAuth();
+
+  // Active camera selection: 'cam1' (Crowd Test) vs 'cam2' (Busy Pedestrian Street Aerial)
+  const [activeCam, setActiveCam] = useState('cam1');
+
   const {
     heatmap, areas, serverStatus,
-    sharing, permState, loading, error, backendOnline,
-    isDemoMode, demoScenario, refetch,
+    sharing, permState, loading, backendOnline,
+    isDemoMode, demoScenario,
     toggleDemoMode, setScenario,
     enableSharing, disableSharing,
-  } = useLocationData(role);
+  } = useLocationData(role, activeCam);
 
-  const [selectedCell, setSelectedCell] = useState(null);
-  const [filter, setFilter] = useState('ALL'); // ALL | HIGH | CRITICAL
+  // Visualization mode: '2d' or '3d'
+  const [viewMode, setViewMode] = useState('2d'); // '2d' | '3d'
+  const [filter, setFilter] = useState('ALL'); // ALL | HIGH | CRITICAL | MODERATE | CROWDED
+  const [selectedCellId, setSelectedCellId] = useState(null);
 
-  const cells = heatmap?.cells ?? [];
+  // ── Transform raw camera-derived cells into unified normalized venue coordinates ──
+  const rawCells = heatmap?.cells ?? [];
+  const normalizedPoints = useMemo(() => {
+    return normalizeHeatmapData(rawCells, role);
+  }, [rawCells, role]);
 
-  const visibleCells = cells.filter(c => {
-    if (filter === 'HIGH')     return c.risk_level === 'HIGH' || c.risk_level === 'CRITICAL';
-    if (filter === 'CRITICAL') return c.risk_level === 'CRITICAL';
-    return true;
-  });
+  const detections = heatmap?.detections ?? [];
+
+  // Selected point object
+  const selectedPoint = useMemo(() => {
+    if (!selectedCellId) return null;
+    return normalizedPoints.find(p => p.id === selectedCellId || p.name === selectedCellId) || null;
+  }, [selectedCellId, normalizedPoints]);
+
+  const handleSelectPoint = (pt) => {
+    setSelectedCellId(pt ? pt.id : null);
+  };
 
   const handleToggleDemo = async () => {
+    const nextState = !isDemoMode;
     if (toggleDemoMode) {
-      await toggleDemoMode(!isDemoMode);
+      await toggleDemoMode(nextState);
     }
+    try {
+      await toggleCameraDemo(nextState);
+    } catch {}
   };
 
   const handleScenarioChange = async (newScenario) => {
     if (setScenario) {
       await setScenario(newScenario);
     }
+    try {
+      await setCameraScenario(newScenario);
+    } catch {}
+  };
+
+  const cameraMeta = {
+    id: activeCam,
+    name: activeCam === 'cam1' ? 'CAM 1 - Crowd Test' : 'CAM 2 - Stock Footage Busy Pedestrian Street (Aerial)',
+    totalPeople: heatmap?.total_people ?? (detections.length || normalizedPoints.reduce((a, b) => a + b.density, 0)),
   };
 
   return (
     <main className="page heatmap-page">
+      {/* ── Page Header Row ─────────────────────────────────────── */}
       <div className="camera-header-row">
         <h1 className="page-title">
-          <span>🗺</span> Location Heatmap
+          <span>🏟️</span> Venue Crowd Intelligence Heatmap
           {isDemoMode ? (
             <span className="demo-badge-pill" title="Synthetic Simulation Active">
               <span className="pulse-dot" style={{ background: 'var(--accent)' }} />
@@ -117,7 +105,7 @@ export default function Heatmap() {
           )}
         </h1>
 
-        {/* ── Role & Live/Demo Mode Bar ────────────────────────────── */}
+        {/* ── Role & Live/Demo Mode Bar ──────────────────────────── */}
         <div className="mode-toggle-group">
           <div className="role-switch" role="group" aria-label="User View Role">
             <button
@@ -155,12 +143,111 @@ export default function Heatmap() {
         </div>
       </div>
 
-      {/* ── Demo Scenario Controls ────────────────────────────── */}
+      {/* ── Camera Source Selection Bar (CAM 1 <-> CAM 2) ─────────── */}
+      <section className="camera-source-selector card" aria-label="Camera Ground-Plane Selection">
+        <div className="cam-selector-bar">
+          <div className="cam-selector-label-group">
+            <span className="cam-badge-tag">CAMERA-DERIVED VENUE MODEL</span>
+            <span className="cam-badge-sub">SPATIAL DATA: REAL DETECTIONS (GROUND-PLANE PROJECTION)</span>
+          </div>
+          <div className="cam-switch-pair">
+            <button
+              type="button"
+              id="btn-cam1-source"
+              className={`cam-source-btn ${activeCam === 'cam1' ? 'cam-source-btn--active' : ''}`}
+              onClick={() => {
+                setActiveCam('cam1');
+                setSelectedCellId(null);
+              }}
+            >
+              <span className="cam-source-dot" />
+              <span>📹 CAM 1: Crowd Test</span>
+              {activeCam === 'cam1' && (
+                <span className="cam-active-count">{cameraMeta.totalPeople} pax</span>
+              )}
+            </button>
+            <button
+              type="button"
+              id="btn-cam2-source"
+              className={`cam-source-btn ${activeCam === 'cam2' ? 'cam-source-btn--active' : ''}`}
+              onClick={() => {
+                setActiveCam('cam2');
+                setSelectedCellId(null);
+              }}
+            >
+              <span className="cam-source-dot" />
+              <span>📹 CAM 2: Pedestrian Street Aerial</span>
+              {activeCam === 'cam2' && (
+                <span className="cam-active-count">{cameraMeta.totalPeople} pax</span>
+              )}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Venue Visualization Mode Switcher: [ 2D VENUE ] [ 3D VENUE ] ── */}
+      <section className="heatmap-view-selector card" aria-label="Venue Heatmap Visualization Mode">
+        <div className="venue-mode-bar">
+          <div className="venue-mode-toggle-group">
+            <span className="venue-mode-label">VIEW MODE:</span>
+            <div className="venue-btn-pair">
+              <button
+                type="button"
+                id="btn-venue-2d"
+                className={`venue-toggle-btn ${viewMode === '2d' ? 'venue-toggle-btn--active' : ''}`}
+                onClick={() => setViewMode('2d')}
+                aria-pressed={viewMode === '2d'}
+              >
+                <span>🗺</span> [ 2D VENUE ]
+              </button>
+              <button
+                type="button"
+                id="btn-venue-3d"
+                className={`venue-toggle-btn ${viewMode === '3d' ? 'venue-toggle-btn--active' : ''}`}
+                onClick={() => setViewMode('3d')}
+                aria-pressed={viewMode === '3d'}
+              >
+                <span>🧊</span> [ 3D VENUE ]
+              </button>
+            </div>
+          </div>
+
+          {/* ── Operational Risk & Terrain Legend ─────────────────── */}
+          <div className="venue-legend-container">
+            <div className="venue-risk-scale">
+              <span className="legend-title">RISK LEVEL:</span>
+              <div className="legend-items">
+                {['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].map((lvl) => {
+                  const item = RISK_PALETTE[lvl];
+                  return (
+                    <div key={lvl} className="legend-chip" title={item.desc}>
+                      <span className="legend-color-dot" style={{ background: item.hex }} />
+                      <span className="legend-chip-label">{item.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {viewMode === '3d' && (
+              <div className="venue-3d-mapping-tag">
+                <span className="mapping-text">HEIGHT = <strong>CROWD DENSITY</strong></span>
+                <span className="mapping-sep">·</span>
+                <span className="mapping-text">COLOUR = <strong>RISK LEVEL</strong></span>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Demo Scenario Controls (Shared across both 2D and 3D) ──── */}
       {isDemoMode && (
         <section className="demo-controls-card card animate-slide-in">
           <div className="demo-controls-header">
-            <span className="demo-tag">HEATMAP DEMO SIMULATION SCENARIOS</span>
-            <span className="demo-hint">Simulates GPS crowd concentration, cell aggregation, risk levels & alternate routing</span>
+            <span className="demo-tag">DEMO SIMULATION SCENARIOS</span>
+            <span className="demo-hint">
+              Simulates crowd distribution, continuous heat dispersion &amp; 3D terrain elevation on real spatial coordinates
+            </span>
           </div>
           <div className="scenario-buttons">
             {[
@@ -168,7 +255,7 @@ export default function Heatmap() {
               { id: 'buildup', label: '2. Crowd Build-up', icon: '🟡' },
               { id: 'critical', label: '3. High/Critical Risk', icon: '🔴' },
               { id: 'dispersal', label: '4. Dispersal', icon: '🔵' },
-            ].map(sc => (
+            ].map((sc) => (
               <button
                 key={sc.id}
                 className={`scenario-btn ${demoScenario === sc.id ? 'scenario-btn--active' : ''}`}
@@ -181,22 +268,22 @@ export default function Heatmap() {
         </section>
       )}
 
-      {/* ── Error banner ──────────────────────────────────────── */}
-      {!backendOnline && !loading && (
+      {/* ── Server Offline Alert ─────────────────────────────────── */}
+      {!backendOnline && !loading && !isDemoMode && (
         <div className="error-banner" role="alert">
           <span>⚡</span>
-          Location server offline — run <code>location_server.py</code>.
+          Location server offline — toggle <em>DEMO</em> mode above or launch <code>location_server.py</code>.
         </div>
       )}
 
-      {/* ── Privacy / sharing toggle ──────────────────────────── */}
+      {/* ── Privacy & Opt-in Ground Signal Indicator ─────────────── */}
       <div className="heatmap-privacy card">
         <div className="heatmap-privacy__info">
           <span className="heatmap-privacy__icon">🔒</span>
           <div>
-            <span className="heatmap-privacy__title">Share My Location</span>
+            <span className="heatmap-privacy__title">Camera Ground-Plane Spatial Mapping</span>
             <span className="heatmap-privacy__desc">
-              Coarse location only · Anonymous · No tracking
+              Visible ground-plane model X ∈ [0, 1], Y ∈ [0, 1] · Source: {cameraMeta.name} · {cameraMeta.totalPeople} real people detected
             </span>
           </div>
         </div>
@@ -205,22 +292,23 @@ export default function Heatmap() {
             id="location-toggle"
             type="checkbox"
             checked={sharing}
-            onChange={e => e.target.checked ? enableSharing() : disableSharing()}
+            onChange={(e) => (e.target.checked ? enableSharing() : disableSharing())}
           />
           <span className="toggle-track"><span className="toggle-thumb" /></span>
           <span className="sr-only">{sharing ? 'Disable' : 'Enable'} location sharing</span>
         </label>
       </div>
+
       {permState === 'denied' && (
         <p className="heatmap-perm-warning">
           ⚠ Location permission denied. Enable it in browser settings.
         </p>
       )}
 
-      {/* ── Filter chips ──────────────────────────────────────── */}
+      {/* ── Filter Chips ────────────────────────────────────────── */}
       <div className="heatmap-filters" role="group" aria-label="Crowd filter">
         {isManager
-          ? ['ALL','HIGH','CRITICAL'].map(f => (
+          ? ['ALL', 'HIGH', 'CRITICAL'].map((f) => (
               <button
                 key={f}
                 className={`heatmap-filter-btn ${filter === f ? 'heatmap-filter-btn--active' : ''}`}
@@ -230,136 +318,101 @@ export default function Heatmap() {
                 {f}
               </button>
             ))
-          : ['ALL', 'MODERATE', 'CROWDED'].map(f => (
+          : ['ALL', 'MODERATE', 'CROWDED'].map((f) => (
               <button
                 key={f}
                 className={`heatmap-filter-btn ${filter === f ? 'heatmap-filter-btn--active' : ''}`}
                 onClick={() => setFilter(f)}
                 aria-pressed={filter === f}
               >
-                {f === 'ALL' ? 'All Areas' : (f === 'MODERATE' ? 'Moderate Flow' : 'Busy Areas')}
+                {f === 'ALL' ? 'All Areas' : f === 'MODERATE' ? 'Moderate Flow' : 'Busy Areas'}
               </button>
             ))}
       </div>
 
-      {/* ── Map ───────────────────────────────────────────────── */}
-      <div className="heatmap-map-container card">
-        <MapContainer
-          center={DEFAULT_CENTER}
-          zoom={DEFAULT_ZOOM}
-          className="heatmap-map"
-          scrollWheelZoom
-          zoomControl
-        >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      {/* ── Main Visualization Area: 2D VENUE vs 3D VENUE ───────── */}
+      <section className="venue-visualizer-section card" aria-label="Venue Heatmap Display">
+        {viewMode === '2d' ? (
+          <VenueHeatmap2D
+            points={normalizedPoints}
+            detections={detections}
+            cameraInfo={cameraMeta}
+            selectedPoint={selectedPoint}
+            onSelectPoint={handleSelectPoint}
+            isManager={isManager}
+            filter={filter}
           />
+        ) : (
+          <VenueHeatmap3D
+            points={normalizedPoints}
+            detections={detections}
+            cameraInfo={cameraMeta}
+            selectedPoint={selectedPoint}
+            onSelectPoint={handleSelectPoint}
+            isManager={isManager}
+            filter={filter}
+          />
+        )}
+      </section>
 
-          <MapFitter cells={visibleCells} />
-
-          {visibleCells.map(cell => {
-            const crowdStatus = cell.crowd_status || (cell.risk_level === 'CRITICAL' ? 'Crowded' : (cell.risk_level === 'HIGH' ? 'Moderate' : 'Low'));
-            const color = crowdStatus === 'Crowded' ? 'rgba(239,68,68,0.75)' : (crowdStatus === 'Moderate' ? 'rgba(245,158,11,0.7)' : 'rgba(34,197,94,0.65)');
-            const radius = cell.density ? cellRadius(cell.density) : (crowdStatus === 'Crowded' ? 45 : (crowdStatus === 'Moderate' ? 30 : 20));
-
-            return (
-              <CircleMarker
-                key={cell.cell_id}
-                center={[cell.lat || cell.latitude, cell.lon || cell.longitude]}
-                radius={radius}
-                pathOptions={{
-                  fillColor: color,
-                  fillOpacity: 0.7,
-                  color: color,
-                  weight: selectedCell?.cell_id === cell.cell_id ? 2.5 : 1,
-                  opacity: 0.9,
-                }}
-                eventHandlers={{
-                  click: () => setSelectedCell(prev =>
-                    prev?.cell_id === cell.cell_id ? null : cell
-                  ),
-                }}
-              >
-                <Popup className="heatmap-popup">
-                  <div className="heatmap-popup__inner">
-                    <div className="heatmap-popup__header">
-                      <strong className="heatmap-popup__id">{cell.name || cell.cell_id}</strong>
-                      {isManager ? (
-                        <RiskBadge level={cell.risk_level} score={cell.risk_score} size="sm" />
-                      ) : (
-                        <span className="cam-risk-tag" style={{ background: 'var(--bg-elevated)', color: color, fontWeight: 700 }}>
-                          {crowdStatus}
-                        </span>
-                      )}
-                    </div>
-                    {isManager ? (
-                      <div className="heatmap-popup__metrics">
-                        <span>Density: <strong>{cell.density}</strong></span>
-                        <span className={trendClass(cell.trend)}>
-                          Trend: <strong>{trendIcon(cell.trend)} {cell.trend}</strong>
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="heatmap-popup__metrics">
-                        <span>Activity: <strong>{crowdStatus}</strong></span>
-                        <span>{cell.wayfinding || 'Smooth pedestrian route'}</span>
-                      </div>
-                    )}
-                    {(cell.safe_guidance || cell.action || cell.recommended_action) && (
-                      <p className="heatmap-popup__action">{cell.safe_guidance || cell.action || cell.recommended_action}</p>
-                    )}
-                  </div>
-                </Popup>
-              </CircleMarker>
-            );
-          })}
-        </MapContainer>
-      </div>
-
-      {/* ── Selected cell detail ──────────────────────────────── */}
-      {selectedCell && (
-        <section className="cell-detail card animate-slide-in" aria-label="Selected cell detail">
+      {/* ── Selected Hotspot Detail Card ─────────────────────────── */}
+      {selectedPoint && (
+        <section className="cell-detail card animate-slide-in" aria-label="Selected venue area detail">
           <div className="cell-detail__header">
-            <strong className="cell-detail__id">{selectedCell.name || selectedCell.cell_id}</strong>
+            <div>
+              <strong className="cell-detail__id">{selectedPoint.name}</strong>
+              <span className="cell-detail__sector" style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                SPATIAL REGION: {selectedPoint.spatialCoord || `X ${selectedPoint.x.toFixed(2)} / Y ${selectedPoint.y.toFixed(2)}`} · CAMERA GROUND PLANE
+              </span>
+            </div>
             {isManager ? (
-              <RiskBadge level={selectedCell.risk_level} score={selectedCell.risk_score} />
+              <RiskBadge level={selectedPoint.riskLevel} score={selectedPoint.riskScore} />
             ) : (
               <span className="cam-risk-tag" style={{ fontWeight: 700, background: 'var(--bg-elevated)' }}>
-                {selectedCell.crowd_status || 'Low Activity'}
+                {selectedPoint.crowdStatus}
               </span>
             )}
             <button
               className="btn btn-ghost"
-              onClick={() => setSelectedCell(null)}
+              onClick={() => setSelectedCellId(null)}
               aria-label="Close cell detail"
               style={{ marginLeft: 'auto', padding: '4px 10px' }}
-            >✕</button>
+            >
+              ✕
+            </button>
           </div>
 
           {isManager ? (
             <>
               <div className="cell-detail__metrics">
                 <div className="cell-detail__metric">
-                  <span>Density</span><strong>{selectedCell.density}</strong>
+                  <span>Density (Pax)</span>
+                  <strong>{selectedPoint.density}</strong>
                 </div>
                 <div className="cell-detail__metric">
                   <span>Trend</span>
-                  <strong className={trendClass(selectedCell.trend)}>
-                    {trendIcon(selectedCell.trend)} {selectedCell.trend}
+                  <strong className={trendClass(selectedPoint.trend)}>
+                    {trendIcon(selectedPoint.trend)} {selectedPoint.trend}
                   </strong>
                 </div>
                 <div className="cell-detail__metric">
-                  <span>Confidence</span><strong>{selectedCell.confidence ?? '0.9'}</strong>
+                  <span>Spatial Region</span>
+                  <strong style={{ color: '#38bdf8' }}>{selectedPoint.spatialCoord}</strong>
+                </div>
+                <div className="cell-detail__metric">
+                  <span>3D Density Relief</span>
+                  <strong style={{ color: '#38bdf8' }}>
+                    {selectedPoint.density >= 10 ? 'Prominent Peak' : (selectedPoint.density >= 4 ? 'Elevated Hill' : 'Gentle Relief')}
+                  </strong>
                 </div>
               </div>
-              {selectedCell.risk_cause && (
-                <p className="cell-detail__cause">⚠ {selectedCell.risk_cause}</p>
+              {selectedPoint.riskCause && (
+                <p className="cell-detail__cause">⚠ {selectedPoint.riskCause}</p>
               )}
-              {selectedCell.action && (
+              {selectedPoint.action && (
                 <div className="cell-detail__action">
                   <span>🛡</span>
-                  <p>{selectedCell.action}</p>
+                  <p>{selectedPoint.action}</p>
                 </div>
               )}
             </>
@@ -367,11 +420,11 @@ export default function Heatmap() {
             <div className="public-cell-guidance" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
               <div className="cell-detail__action" style={{ background: 'var(--bg-elevated)' }}>
                 <span>🧭</span>
-                <p>{selectedCell.safe_guidance || 'Clear pedestrian passage. Follow wayfinding signage.'}</p>
+                <p>{selectedPoint.action || 'Clear pedestrian passage. Follow wayfinding signage.'}</p>
               </div>
-              {selectedCell.safer_area && (
+              {selectedPoint.safeAlternative && (
                 <p className="safe" style={{ fontSize: '0.8rem', fontWeight: 600 }}>
-                  ➔ Recommended alternate area: {selectedCell.safer_area}
+                  ➔ Recommended alternate path: {selectedPoint.safeAlternative}
                 </p>
               )}
             </div>
@@ -379,47 +432,78 @@ export default function Heatmap() {
         </section>
       )}
 
-      {/* ── Hot areas list ────────────────────────────────────── */}
-      <section aria-label="High risk areas">
-        <div className="section-heading"><span>🔥</span> High-Risk Areas</div>
-        {areas?.areas?.length === 0 ? (
+      {/* ── Active Camera Hotspots List ──────────────────────────── */}
+      <section aria-label="Camera Hotspots">
+        <div className="section-heading">
+          <span>🔥</span> {isManager ? `Active Camera Hotspots (${normalizedPoints.length})` : `Crowded Regions (${normalizedPoints.length})`}
+        </div>
+        {normalizedPoints.length === 0 ? (
           <div className="empty-state">
             <span className="empty-state-icon">✅</span>
-            <span className="empty-state-title">No high-risk areas</span>
-            <p>All location cells within normal parameters.</p>
+            <span className="empty-state-title">No crowd signals</span>
+            <p>All camera ground regions within normal parameters.</p>
           </div>
         ) : (
           <div className="areas-list">
-            {(areas?.areas ?? []).map(cell => (
-              <button
-                key={cell.cell_id}
-                className={`area-card card ${selectedCell?.cell_id === cell.cell_id ? 'area-card--selected' : ''}`}
-                onClick={() => setSelectedCell(prev => prev?.cell_id === cell.cell_id ? null : cell)}
-                aria-label={`Area ${cell.cell_id}: ${cell.risk_level} risk, density ${cell.density}`}
-              >
-                <div className="area-card__left">
-                  <div
-                    className="area-card__dot"
-                    style={{ background: intensityColor(cell.intensity, cell.risk_level) }}
-                  />
-                  <div className="area-card__body">
-                    <code className="area-card__id">{cell.cell_id}</code>
-                    <span className="area-card__sub">Density {cell.density} · {trendIcon(cell.trend)} {cell.trend}</span>
+            {normalizedPoints.map((pt) => {
+              const [r, g, b] = [
+                RISK_PALETTE[pt.riskLevel]?.rgb[0] ?? 34,
+                RISK_PALETTE[pt.riskLevel]?.rgb[1] ?? 197,
+                RISK_PALETTE[pt.riskLevel]?.rgb[2] ?? 94,
+              ];
+              const isSelected = selectedCellId === pt.id;
+
+              return (
+                <button
+                  key={pt.id}
+                  className={`area-card card ${isSelected ? 'area-card--selected' : ''}`}
+                  onClick={() => setSelectedCellId((prev) => (prev === pt.id ? null : pt.id))}
+                  aria-label={`Hotspot ${pt.name}`}
+                >
+                  <div className="area-card__left">
+                    <div
+                      className="area-card__dot"
+                      style={{
+                        background: `rgb(${r}, ${g}, ${b})`,
+                        boxShadow: `0 0 10px rgba(${r}, ${g}, ${b}, 0.5)`,
+                      }}
+                    />
+                    <div className="area-card__body">
+                      <code className="area-card__id">{pt.name}</code>
+                      <span className="area-card__sub">
+                        {isManager
+                          ? `Density: ${pt.density} pax · Risk: ${pt.riskLevel} · Spatial: ${pt.spatialCoord}`
+                          : `Status: ${pt.crowdStatus}`}
+                      </span>
+                    </div>
                   </div>
-                </div>
-                <RiskBadge level={cell.risk_level} score={cell.risk_score} size="sm" />
-              </button>
-            ))}
+                  {isManager ? (
+                    <RiskBadge level={pt.riskLevel} score={pt.riskScore} size="sm" />
+                  ) : (
+                    <span
+                      className="cam-risk-tag"
+                      style={{
+                        background: 'var(--bg-elevated)',
+                        color: `rgb(${r}, ${g}, ${b})`,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {pt.crowdStatus}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
       </section>
 
-      {/* ── Server stats ─────────────────────────────────────── */}
-      {serverStatus && (
-        <div className="heatmap-server-stats">
-          <span>📊 {serverStatus.total_cells} cells · {serverStatus.total_samples_in_window} signals · {serverStatus.window_minutes}min window</span>
-        </div>
-      )}
+      {/* ── Ground Model Statistics Footer ───────────────────────── */}
+      <div className="heatmap-server-stats">
+        <span>
+          📊 {normalizedPoints.length} active camera hotspots · {cameraMeta.totalPeople} real people detected · {cameraMeta.name} · CAMERA-DERIVED SPATIAL MODEL
+        </span>
+      </div>
     </main>
   );
 }
