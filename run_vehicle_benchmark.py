@@ -15,11 +15,11 @@ from ultralytics import YOLO
 PROJECT_ROOT = os.path.abspath(os.path.dirname(__file__))
 BENCHMARK_DIR = os.path.join(PROJECT_ROOT, "benchmark_vehicle")
 
-MODEL_YOLOV8N = os.path.join(PROJECT_ROOT, "CrowdShield_Shaurya", "models", "yolov8n.pt")
-MODEL_VEHICLE = os.path.join(PROJECT_ROOT, "CrowdShield_Shaurya", "models", "vehicle_checkpoint.pt")
+MODEL_YOLOV8N = os.path.join(PROJECT_ROOT, "models", "yolov8n.pt")
+MODEL_VEHICLE = os.path.join(PROJECT_ROOT, "models", "vehicle_checkpoint.pt")
 
-VIDEO_CAM1 = os.path.join(PROJECT_ROOT, "CrowdShield_Shaurya", "data", "videos", "crowd_test.mp4")
-VIDEO_CAM2 = os.path.join(PROJECT_ROOT, "CrowdShield_Shaurya", "data", "videos", "stock-footage-busy-pedestrian-street-crowd-people-walking-on-around-city-square-view-from-the-top-aerial-shoot.webm")
+VIDEO_CAM1 = os.path.join(PROJECT_ROOT, "data", "videos", "crowd_test.mp4")
+VIDEO_CAM2 = os.path.join(PROJECT_ROOT, "data", "videos", "stock-footage-busy-pedestrian-street-crowd-people-walking-on-around-city-square-view-from-the-top-aerial-shoot.webm")
 
 IMGSZ = 960
 CONF_THRESH = 0.25
